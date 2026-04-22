@@ -1,0 +1,498 @@
+import { createClient } from "@supabase/supabase-js";
+
+// ── Config ──
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+
+if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+  console.error(
+    "Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in .env.local"
+  );
+  process.exit(1);
+}
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+  auth: { autoRefreshToken: false, persistSession: false },
+});
+
+// ── Demo users ──
+const DEMO_PASSWORD = "Demo@1234";
+
+const users = [
+  {
+    email: "david.wong@cleanpro-demo.com",
+    full_name: "David Wong",
+    role: "manager" as const,
+  },
+  {
+    email: "michael.lim@cleanpro-demo.com",
+    full_name: "Michael Lim",
+    role: "supervisor" as const,
+  },
+  {
+    email: "sarah.tan@cleanpro-demo.com",
+    full_name: "Sarah Tan",
+    role: "staff" as const,
+  },
+  {
+    email: "ahmad.bin@cleanpro-demo.com",
+    full_name: "Ahmad Bin Yusof",
+    role: "staff" as const,
+  },
+  {
+    email: "priya.nair@cleanpro-demo.com",
+    full_name: "Priya Nair",
+    role: "staff" as const,
+  },
+];
+
+const SITES = [
+  "Marina Bay Sands - Level 3",
+  "CapitaLand Mall - Food Court",
+  "One Raffles Place - Lobby",
+  "Changi Business Park - Block A",
+];
+
+// ── Helpers ──
+function hoursFromNow(h: number): string {
+  return new Date(Date.now() + h * 60 * 60 * 1000).toISOString();
+}
+
+function hoursAgo(h: number): string {
+  return new Date(Date.now() - h * 60 * 60 * 1000).toISOString();
+}
+
+function daysAgo(d: number): string {
+  return new Date(Date.now() - d * 24 * 60 * 60 * 1000).toISOString();
+}
+
+// ── Main ──
+async function seed() {
+  console.log("🌱 Seeding TaskMe demo data...\n");
+
+  // 1. Create auth users + profiles
+  const profileIds: Record<string, string> = {};
+
+  // Pre-fetch existing users once
+  const { data: existingUsers } = await supabase.auth.admin.listUsers();
+
+  for (const u of users) {
+    console.log(`  Creating user: ${u.full_name} (${u.email})`);
+
+    const existing = existingUsers?.users?.find(
+      (eu) => eu.email === u.email
+    );
+
+    let userId: string;
+
+    if (existing) {
+      userId = existing.id;
+      console.log(`    ↳ Already exists (${userId})`);
+    } else {
+      // Create user WITHOUT user_metadata to avoid trigger issues
+      const { data, error } = await supabase.auth.admin.createUser({
+        email: u.email,
+        password: DEMO_PASSWORD,
+        email_confirm: true,
+      });
+
+      if (error) {
+        console.error(`    ✗ Failed to create user: ${error.message}`);
+        console.error(`    ✗ Error details:`, JSON.stringify(error, null, 2));
+        continue;
+      }
+      userId = data.user.id;
+      console.log(`    ✓ Created (${userId})`);
+    }
+
+    profileIds[u.email] = userId;
+
+    // Upsert profile directly (service role bypasses RLS)
+    const { error: profileError } = await supabase.from("profiles").upsert(
+      {
+        id: userId,
+        full_name: u.full_name,
+        email: u.email,
+        role: u.role,
+      },
+      { onConflict: "id" }
+    );
+
+    if (profileError) {
+      console.error(`    ✗ Profile upsert failed: ${profileError.message}`);
+    } else {
+      console.log(`    ✓ Profile ready`);
+    }
+  }
+
+  const managerId = profileIds["david.wong@cleanpro-demo.com"];
+  const supervisorId = profileIds["michael.lim@cleanpro-demo.com"];
+  const sarahId = profileIds["sarah.tan@cleanpro-demo.com"];
+  const ahmadId = profileIds["ahmad.bin@cleanpro-demo.com"];
+  const priyaId = profileIds["priya.nair@cleanpro-demo.com"];
+
+  if (!managerId || !supervisorId || !sarahId || !ahmadId || !priyaId) {
+    console.error("\n✗ Some users failed to create. Aborting task seeding.");
+    process.exit(1);
+  }
+
+  // 2. Seed tasks
+  console.log("\n  Creating tasks...");
+
+  const taskDefs = [
+    // ── 4 Completed tasks ──
+    {
+      title: "Clean and sanitize all washrooms - Level 3",
+      description:
+        "Deep clean all 6 washrooms on Level 3 including toilet bowls, sinks, mirrors, and floor mopping. Restock tissue and soap.",
+      assigned_to: sarahId,
+      created_by: supervisorId,
+      site_location: SITES[0],
+      priority: "medium" as const,
+      status: "completed" as const,
+      due_date: daysAgo(1),
+      completed_at: daysAgo(1),
+    },
+    {
+      title: "Mop marble flooring - Main lobby",
+      description:
+        "Use neutral pH floor cleaner on all marble surfaces. Buff to shine. Place wet floor signs during cleaning.",
+      assigned_to: ahmadId,
+      created_by: supervisorId,
+      site_location: SITES[2],
+      priority: "high" as const,
+      status: "completed" as const,
+      due_date: daysAgo(2),
+      completed_at: daysAgo(2),
+    },
+    {
+      title: "Glass panel polishing - Entrance facade",
+      description:
+        "Clean all glass panels at the main entrance using streak-free glass cleaner. Both interior and exterior surfaces.",
+      assigned_to: priyaId,
+      created_by: supervisorId,
+      site_location: SITES[2],
+      priority: "low" as const,
+      status: "completed" as const,
+      due_date: daysAgo(3),
+      completed_at: daysAgo(3),
+    },
+    {
+      title: "Sanitize common area furniture",
+      description:
+        "Wipe down all tables, chairs, and benches in common areas with hospital-grade disinfectant.",
+      assigned_to: sarahId,
+      created_by: supervisorId,
+      site_location: SITES[1],
+      priority: "medium" as const,
+      status: "completed" as const,
+      due_date: hoursAgo(5),
+      completed_at: hoursAgo(4),
+    },
+    // ── 3 Pending tasks (not yet due) ──
+    {
+      title: "Restock consumables - All dispensers",
+      description:
+        "Check and refill all soap dispensers, tissue holders, and hand sanitizer stations across all floors.",
+      assigned_to: priyaId,
+      created_by: supervisorId,
+      site_location: SITES[0],
+      priority: "medium" as const,
+      status: "pending" as const,
+      due_date: hoursFromNow(4),
+      completed_at: null,
+    },
+    {
+      title: "Vacuum carpeted meeting rooms",
+      description:
+        "Vacuum all 8 meeting rooms on Level 5. Move chairs and vacuum under tables. Empty vacuum bag after completion.",
+      assigned_to: ahmadId,
+      created_by: supervisorId,
+      site_location: SITES[3],
+      priority: "low" as const,
+      status: "pending" as const,
+      due_date: hoursFromNow(6),
+      completed_at: null,
+    },
+    {
+      title: "Wipe down office partitions",
+      description:
+        "Clean all glass and acrylic partitions in the open office area using anti-static wipes.",
+      assigned_to: sarahId,
+      created_by: supervisorId,
+      site_location: SITES[3],
+      priority: "low" as const,
+      status: "pending" as const,
+      due_date: hoursFromNow(8),
+      completed_at: null,
+    },
+    // ── 3 Overdue tasks (2-4 hours ago) ──
+    {
+      title: "Deep clean kitchen exhaust hood",
+      description:
+        "Degrease and clean all kitchen exhaust hood filters and surrounding areas. Use industrial degreaser.",
+      assigned_to: ahmadId,
+      created_by: supervisorId,
+      site_location: SITES[1],
+      priority: "high" as const,
+      status: "in_progress" as const,
+      due_date: hoursAgo(2),
+      completed_at: null,
+    },
+    {
+      title: "Clear food waste from bin centre",
+      description:
+        "Empty all food waste bins, clean bin interiors with bleach solution, replace bin liners. Wash surrounding floor area.",
+      assigned_to: sarahId,
+      created_by: supervisorId,
+      site_location: SITES[1],
+      priority: "high" as const,
+      status: "pending" as const,
+      due_date: hoursAgo(3),
+      completed_at: null,
+    },
+    {
+      title: "Polish elevator door panels",
+      description:
+        "Polish all stainless steel elevator door panels on floors 1-5 using metal polish. Remove fingerprints and smudges.",
+      assigned_to: priyaId,
+      created_by: supervisorId,
+      site_location: SITES[2],
+      priority: "medium" as const,
+      status: "pending" as const,
+      due_date: hoursAgo(4),
+      completed_at: null,
+    },
+    // ── 2 Pending supervisor review (completed, evidence submitted) ──
+    {
+      title: "Pressure wash car park Level B1",
+      description:
+        "Pressure wash entire B1 car park floor. Focus on oil stains near parking bays 15-30. Allow 2 hours drying time.",
+      assigned_to: ahmadId,
+      created_by: supervisorId,
+      site_location: SITES[0],
+      priority: "medium" as const,
+      status: "completed" as const,
+      due_date: hoursAgo(1),
+      completed_at: hoursAgo(1),
+    },
+    {
+      title: "Descale water features - Lobby fountain",
+      description:
+        "Descale and clean the lobby water fountain. Drain, scrub with descaling agent, refill with treated water.",
+      assigned_to: priyaId,
+      created_by: supervisorId,
+      site_location: SITES[2],
+      priority: "low" as const,
+      status: "completed" as const,
+      due_date: hoursAgo(2),
+      completed_at: hoursAgo(1),
+    },
+    // ── 2 Escalated tasks (critical) ──
+    {
+      title: "Emergency spill cleanup - Chemical leak B2",
+      description:
+        "URGENT: Chemical spill detected in basement B2 storage area. Use spill kit. Follow SDS protocol for cleaning agent residue.",
+      assigned_to: sarahId,
+      created_by: supervisorId,
+      site_location: SITES[3],
+      priority: "critical" as const,
+      status: "in_progress" as const,
+      due_date: hoursAgo(6),
+      completed_at: null,
+    },
+    {
+      title: "Repair and clean ceiling water damage - Level 2",
+      description:
+        "Water stain on ceiling tiles Level 2 corridor. Remove damaged tiles, clean mold if present, coordinate tile replacement.",
+      assigned_to: ahmadId,
+      created_by: supervisorId,
+      site_location: SITES[0],
+      priority: "critical" as const,
+      status: "pending" as const,
+      due_date: hoursAgo(8),
+      completed_at: null,
+    },
+    // ── 1 Rejected task ──
+    {
+      title: "Floor wax application - Office Level 4",
+      description:
+        "Apply 3 coats of floor wax to vinyl flooring on Level 4. Allow 45 minutes drying between coats.",
+      assigned_to: priyaId,
+      created_by: supervisorId,
+      site_location: SITES[3],
+      priority: "medium" as const,
+      status: "rejected" as const,
+      due_date: daysAgo(1),
+      completed_at: null,
+    },
+  ];
+
+  const insertedTaskIds: string[] = [];
+
+  for (const task of taskDefs) {
+    const { data, error } = await supabase
+      .from("tasks")
+      .insert(task)
+      .select("id")
+      .single();
+
+    if (error) {
+      console.error(`    ✗ Task "${task.title}": ${error.message}`);
+    } else {
+      insertedTaskIds.push(data.id);
+      console.log(`    ✓ ${task.title}`);
+    }
+  }
+
+  // 3. Add evidence for the 2 "pending review" tasks (index 10, 11)
+  console.log("\n  Creating task evidence...");
+
+  const evidenceTasks = [
+    {
+      taskIndex: 10,
+      submitted_by: ahmadId,
+      notes:
+        "Car park B1 pressure washed. Oil stains removed from bays 15-30. Floor drying in progress.",
+    },
+    {
+      taskIndex: 11,
+      submitted_by: priyaId,
+      notes:
+        "Fountain descaled and refilled. Water pump tested and running smoothly. Before/after photos attached.",
+    },
+  ];
+
+  for (const ev of evidenceTasks) {
+    if (!insertedTaskIds[ev.taskIndex]) continue;
+    const { error } = await supabase.from("task_evidence").insert({
+      task_id: insertedTaskIds[ev.taskIndex],
+      submitted_by: ev.submitted_by,
+      photo_url: `https://placehold.co/800x600/e2e8f0/475569?text=Evidence+Photo`,
+      notes: ev.notes,
+    });
+    if (error) {
+      console.error(`    ✗ Evidence: ${error.message}`);
+    } else {
+      console.log(`    ✓ Evidence for task #${ev.taskIndex + 1}`);
+    }
+  }
+
+  // 4. Add evidence for completed tasks too (index 0-3)
+  const completedEvidence = [
+    {
+      taskIndex: 0,
+      submitted_by: sarahId,
+      notes: "All 6 washrooms cleaned and sanitized. Supplies restocked.",
+    },
+    {
+      taskIndex: 1,
+      submitted_by: ahmadId,
+      notes: "Marble flooring mopped and buffed to shine. Wet floor signs placed.",
+    },
+    {
+      taskIndex: 2,
+      submitted_by: priyaId,
+      notes: "All entrance glass panels polished. Streak-free finish achieved.",
+    },
+    {
+      taskIndex: 3,
+      submitted_by: sarahId,
+      notes: "All common area furniture sanitized with hospital-grade disinfectant.",
+    },
+  ];
+
+  for (const ev of completedEvidence) {
+    if (!insertedTaskIds[ev.taskIndex]) continue;
+    const { error } = await supabase.from("task_evidence").insert({
+      task_id: insertedTaskIds[ev.taskIndex],
+      submitted_by: ev.submitted_by,
+      photo_url: `https://placehold.co/800x600/d1fae5/166534?text=Completed`,
+      notes: ev.notes,
+    });
+    if (error) {
+      console.error(`    ✗ Evidence: ${error.message}`);
+    } else {
+      console.log(`    ✓ Evidence for completed task #${ev.taskIndex + 1}`);
+    }
+  }
+
+  // 5. Add reviews for completed tasks (index 0-3)
+  console.log("\n  Creating task reviews...");
+
+  for (let i = 0; i < 4; i++) {
+    if (!insertedTaskIds[i]) continue;
+    const { error } = await supabase.from("task_reviews").insert({
+      task_id: insertedTaskIds[i],
+      reviewed_by: supervisorId,
+      action: "approved",
+      comment: "Good work. Standards met.",
+    });
+    if (error) {
+      console.error(`    ✗ Review: ${error.message}`);
+    } else {
+      console.log(`    ✓ Review for task #${i + 1}`);
+    }
+  }
+
+  // Add rejection review for rejected task (index 14)
+  if (insertedTaskIds[14]) {
+    const { error } = await supabase.from("task_reviews").insert({
+      task_id: insertedTaskIds[14],
+      reviewed_by: supervisorId,
+      action: "rejected",
+      comment:
+        "Floor wax application incomplete — only 1 coat applied instead of 3. Please redo with full 3 coats.",
+    });
+    if (error) {
+      console.error(`    ✗ Rejection review: ${error.message}`);
+    } else {
+      console.log(`    ✓ Rejection review for task #15`);
+    }
+  }
+
+  // 6. Create escalations for critical tasks (index 12, 13)
+  console.log("\n  Creating escalations...");
+
+  const escalationDefs = [
+    {
+      taskIndex: 12,
+      reason:
+        "CRITICAL: Chemical spill in B2 has not been fully resolved after 6 hours. Staff reports insufficient spill kit supplies. Needs immediate management intervention.",
+    },
+    {
+      taskIndex: 13,
+      reason:
+        "CRITICAL: Ceiling water damage on Level 2 worsening. Possible mold risk. Awaiting contractor coordination — requires manager approval for emergency procurement.",
+    },
+  ];
+
+  for (const esc of escalationDefs) {
+    if (!insertedTaskIds[esc.taskIndex]) continue;
+    const { error } = await supabase.from("escalations").insert({
+      task_id: insertedTaskIds[esc.taskIndex],
+      escalated_from: supervisorId,
+      escalated_to: managerId,
+      reason: esc.reason,
+      is_resolved: false,
+    });
+    if (error) {
+      console.error(`    ✗ Escalation: ${error.message}`);
+    } else {
+      console.log(`    ✓ Escalation for task #${esc.taskIndex + 1}`);
+    }
+  }
+
+  console.log("\n✅ Demo data seeded successfully!");
+  console.log("\n📋 Demo Accounts:");
+  console.log("  Manager:    david.wong@cleanpro-demo.com / Demo@1234");
+  console.log("  Supervisor: michael.lim@cleanpro-demo.com / Demo@1234");
+  console.log("  Staff:      sarah.tan@cleanpro-demo.com / Demo@1234");
+  console.log("  Staff:      ahmad.bin@cleanpro-demo.com / Demo@1234");
+  console.log("  Staff:      priya.nair@cleanpro-demo.com / Demo@1234");
+}
+
+seed().catch((err) => {
+  console.error("Seed failed:", err);
+  process.exit(1);
+});
