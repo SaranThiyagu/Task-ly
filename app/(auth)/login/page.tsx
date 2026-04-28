@@ -2,24 +2,63 @@
 
 import { useState } from "react";
 import { login } from "./actions";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { CheckSquare } from "lucide-react";
+import {
+  CheckSquare,
+  Loader2,
+  Users,
+  Shield,
+  BarChart3,
+  ArrowRight,
+} from "lucide-react";
+
+// ── Hardcoded demo credentials (shared password across roles) ──
+const DEMO_PASSWORD = "Demo@1234";
+
+const roles = [
+  {
+    role: "Staff",
+    name: "Sarah Tan",
+    email: "sarah.tan@cleanpro-demo.com",
+    icon: Users,
+    iconBg: "bg-blue-50 text-blue-600",
+    description: "Submit task evidence and track assigned jobs",
+  },
+  {
+    role: "Supervisor",
+    name: "Michael Lim",
+    email: "michael.lim@cleanpro-demo.com",
+    icon: Shield,
+    iconBg: "bg-emerald-50 text-emerald-600",
+    description: "Review submissions, approve tasks, manage team",
+  },
+  {
+    role: "Manager",
+    name: "David Wong",
+    email: "david.wong@cleanpro-demo.com",
+    icon: BarChart3,
+    iconBg: "bg-violet-50 text-violet-600",
+    description: "KPI dashboards, escalations, reports & exports",
+  },
+] as const;
 
 export default function LoginPage() {
+  const [loadingEmail, setLoadingEmail] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(formData: FormData) {
+  async function handleRoleLogin(email: string) {
     setError(null);
-    setLoading(true);
+    setLoadingEmail(email);
+
+    const formData = new FormData();
+    formData.append("email", email);
+    formData.append("password", DEMO_PASSWORD);
+
     const result = await login(formData);
     if (result?.error) {
       setError(result.error);
+      setLoadingEmail(null);
     }
-    setLoading(false);
   }
 
   return (
@@ -48,8 +87,8 @@ export default function LoginPage() {
         </p>
       </div>
 
-      {/* Right panel — login form */}
-      <div className="flex w-full lg:w-1/2 items-center justify-center bg-gray-50 px-6">
+      {/* Right panel — role picker (no username/password input) */}
+      <div className="flex w-full lg:w-1/2 items-center justify-center bg-gray-50 px-6 py-10">
         <Card className="w-full max-w-md p-8 shadow-lg border-0">
           {/* Mobile logo */}
           <div className="flex items-center gap-2 mb-8 lg:hidden">
@@ -59,10 +98,10 @@ export default function LoginPage() {
 
           <div className="mb-8">
             <h2 className="text-2xl font-semibold text-slate-900">
-              Sign in to your account
+              Choose your role
             </h2>
             <p className="mt-1 text-sm text-slate-500">
-              Enter your credentials to continue
+              One-click access to the demo dashboards
             </p>
           </div>
 
@@ -72,45 +111,50 @@ export default function LoginPage() {
             </div>
           )}
 
-          <form action={handleSubmit} className="space-y-5">
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-slate-700">
-                Email address
-              </Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                placeholder="you@company.com"
-                required
-                autoComplete="email"
-                className="h-11"
-              />
-            </div>
+          <div className="space-y-3">
+            {roles.map((r) => {
+              const isLoading = loadingEmail === r.email;
+              return (
+                <button
+                  key={r.email}
+                  type="button"
+                  disabled={loadingEmail !== null}
+                  onClick={() => handleRoleLogin(r.email)}
+                  className="group w-full text-left rounded-xl border border-slate-200 bg-white p-4 transition-all hover:border-slate-300 hover:shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  <div className="flex items-center gap-4">
+                    <div
+                      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ${r.iconBg}`}
+                    >
+                      <r.icon className="h-5 w-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-slate-900">
+                          {r.role}
+                        </p>
+                        <span className="text-xs text-slate-400">
+                          · {r.name}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5 truncate">
+                        {r.description}
+                      </p>
+                    </div>
+                    {isLoading ? (
+                      <Loader2 className="h-5 w-5 text-slate-400 animate-spin" />
+                    ) : (
+                      <ArrowRight className="h-5 w-5 text-slate-300 group-hover:text-slate-600 group-hover:translate-x-0.5 transition-all" />
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="password" className="text-slate-700">
-                Password
-              </Label>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                placeholder="••••••••"
-                required
-                autoComplete="current-password"
-                className="h-11"
-              />
-            </div>
-
-            <Button
-              type="submit"
-              disabled={loading}
-              className="w-full h-11 bg-slate-900 hover:bg-slate-800 text-white font-medium"
-            >
-              {loading ? "Signing in…" : "Sign In"}
-            </Button>
-          </form>
+          <p className="mt-6 text-center text-xs text-slate-400">
+            Demo mode · Credentials are pre-configured
+          </p>
         </Card>
       </div>
     </div>
