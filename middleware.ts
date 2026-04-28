@@ -1,7 +1,12 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/auth/callback", "/auth/confirm"];
+const PUBLIC_PATHS = [
+  "/login",
+  "/auth/callback",
+  "/auth/confirm",
+  "/api/auto-login",
+];
 
 const ROLE_ROUTES: Record<string, string> = {
   "/staff": "staff",
@@ -49,10 +54,26 @@ export async function middleware(request: NextRequest) {
     (path) => pathname === path || pathname.startsWith(path + "/")
   );
 
-  // Redirect unauthenticated users to /login
+  // Redirect unauthenticated users.
+  // For role routes (/staff, /supervisor, /manager), auto-login as that role
+  // so demo dashboards are directly accessible without a manual sign-in.
   if (!user && !isPublicPath) {
     const url = request.nextUrl.clone();
+
+    for (const [routePrefix, role] of Object.entries(ROLE_ROUTES)) {
+      if (
+        pathname === routePrefix ||
+        pathname.startsWith(routePrefix + "/")
+      ) {
+        url.pathname = "/api/auto-login";
+        url.searchParams.set("role", role);
+        url.searchParams.set("next", pathname);
+        return NextResponse.redirect(url);
+      }
+    }
+
     url.pathname = "/login";
+    url.search = "";
     return NextResponse.redirect(url);
   }
 
@@ -87,9 +108,12 @@ export async function middleware(request: NextRequest) {
         const userRole = profile?.role || "staff";
 
         if (userRole !== requiredRole) {
-          // Redirect to the user's correct dashboard
+          // Auto-switch to the requested role so the URL "just works".
           const url = request.nextUrl.clone();
-          url.pathname = `/${userRole}/dashboard`;
+          url.pathname = "/api/auto-login";
+          url.search = "";
+          url.searchParams.set("role", requiredRole);
+          url.searchParams.set("next", pathname);
           return NextResponse.redirect(url);
         }
         break;
