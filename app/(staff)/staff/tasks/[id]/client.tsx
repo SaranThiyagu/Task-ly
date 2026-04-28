@@ -2,11 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { format, isPast, formatDistanceToNow } from "date-fns";
+import { format, isPast, formatDistanceToNowStrict } from "date-fns";
 import { toast } from "sonner";
 import { startTask, resubmitTask } from "./actions";
 import { CompleteTaskModal } from "@/components/staff/CompleteTaskModal";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   ArrowLeft,
@@ -25,16 +24,17 @@ import {
   AlertTriangle,
   Upload,
   Flag,
+  Zap,
 } from "lucide-react";
 import { UserAvatar } from "@/components/ui/user-avatar";
+import { Badge } from "@/components/ui/badge";
 import type {
   Task,
   Profile,
-  TaskStatus,
+  TaskPriority,
   TaskEvidence,
   TaskReview,
 } from "@/lib/types";
-import { PRIORITY_CONFIG, STATUS_CONFIG } from "@/lib/types";
 
 interface TaskDetailClientProps {
   task: Task;
@@ -45,41 +45,32 @@ interface TaskDetailClientProps {
   })[];
 }
 
-const priorityStyles: Record<
-  string,
-  { bg: string; text: string; dot: string }
-> = {
-  low: {
-    bg: "bg-emerald-50",
-    text: "text-emerald-700",
-    dot: "bg-emerald-500",
-  },
-  medium: { bg: "bg-amber-50", text: "text-amber-700", dot: "bg-amber-500" },
-  high: { bg: "bg-orange-50", text: "text-orange-700", dot: "bg-orange-500" },
-  critical: { bg: "bg-red-50", text: "text-red-700", dot: "bg-red-500" },
+/* ───── Design tokens ─────
+   Primary  : #1E3A8A (deep blue)
+   Success  : #22C55E (green)
+   Warning  : #F59E0B (orange)
+   Danger   : #EF4444 (red)
+*/
+
+const priorityChip: Record<TaskPriority, string> = {
+  low: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+  medium: "bg-amber-50 text-amber-700 ring-amber-200",
+  high: "bg-orange-50 text-orange-700 ring-orange-200",
+  critical: "bg-red-50 text-red-700 ring-red-200",
 };
 
-const statusStyles: Record<
-  string,
-  { bg: string; text: string; ring: string }
-> = {
-  pending: {
-    bg: "bg-slate-50",
-    text: "text-slate-600",
-    ring: "ring-slate-200",
-  },
-  in_progress: {
-    bg: "bg-blue-50",
-    text: "text-blue-700",
-    ring: "ring-blue-200",
-  },
-  completed: {
-    bg: "bg-emerald-50",
-    text: "text-emerald-700",
-    ring: "ring-emerald-200",
-  },
-  rejected: { bg: "bg-red-50", text: "text-red-700", ring: "ring-red-200" },
-  overdue: { bg: "bg-red-50", text: "text-red-700", ring: "ring-red-200" },
+const priorityDot: Record<TaskPriority, string> = {
+  low: "bg-emerald-500",
+  medium: "bg-amber-500",
+  high: "bg-orange-500",
+  critical: "bg-red-500",
+};
+
+const priorityLabel: Record<TaskPriority, string> = {
+  low: "Low",
+  medium: "Medium",
+  high: "High",
+  critical: "Critical",
 };
 
 export function TaskDetailClient({
@@ -97,16 +88,11 @@ export function TaskDetailClient({
     (task.status === "pending" || task.status === "in_progress") &&
     isPast(new Date(task.due_date));
 
-  const displayStatus: TaskStatus = isOverdue ? "overdue" : task.status;
-  const priorityCfg = PRIORITY_CONFIG[task.priority];
-  const statusCfg = STATUS_CONFIG[displayStatus];
-  const pStyle = priorityStyles[task.priority];
-  const sStyle = statusStyles[displayStatus];
-
-  const canAct =
-    task.status === "pending" ||
-    task.status === "in_progress" ||
-    task.status === "rejected";
+  const isCompleted = task.status === "completed";
+  const isRejected = task.status === "rejected";
+  const isInProgress = task.status === "in_progress";
+  const isPending = task.status === "pending";
+  const canAct = isPending || isInProgress || isRejected;
 
   async function handleStartTask() {
     setStarting(true);
@@ -116,566 +102,381 @@ export function TaskDetailClient({
       setStarting(false);
       return;
     }
-    toast.success("Task started!");
+    toast.success("Task started — let's get it done 💪");
     router.refresh();
     setStarting(false);
   }
 
+  async function handleResubmit() {
+    setResubmitting(true);
+    const result = await resubmitTask(task.id);
+    if (result.error) {
+      toast.error(result.error);
+      setResubmitting(false);
+      return;
+    }
+    toast.success("Task reopened — submit new evidence");
+    router.refresh();
+    setResubmitting(false);
+  }
+
+  /* Status badge for breadcrumb row */
+  const statusBadge = isOverdue
+    ? { label: "Overdue", cls: "bg-red-50 text-red-700 ring-red-200", dot: "bg-red-500" }
+    : isCompleted
+      ? { label: "Completed", cls: "bg-emerald-50 text-emerald-700 ring-emerald-200", dot: "bg-emerald-500" }
+      : isInProgress
+        ? { label: "In Progress", cls: "bg-blue-50 text-blue-700 ring-blue-200", dot: "bg-blue-500" }
+        : isRejected
+          ? { label: "Rejected", cls: "bg-red-50 text-red-700 ring-red-200", dot: "bg-red-500" }
+          : { label: "Pending", cls: "bg-slate-50 text-slate-600 ring-slate-200", dot: "bg-slate-400" };
+
   return (
     <div className="mx-auto max-w-[1100px] px-4 sm:px-6 lg:px-8 pb-32 lg:pb-8">
-      {/* Breadcrumb navigation */}
-      <div className="flex items-center justify-between py-5">
-        <div className="flex items-center gap-2 text-sm">
-          <button
-            onClick={() => router.back()}
-            className="flex items-center gap-1 text-slate-400 hover:text-slate-700 transition-colors min-h-[44px]"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </button>
-          <span className="text-slate-300">/</span>
-          <button
-            onClick={() => router.push("/staff/tasks")}
-            className="text-slate-400 hover:text-slate-700 transition-colors"
-          >
-            Operations
-          </button>
-          <span className="text-slate-300">/</span>
-          <span className="text-slate-400">Tasks</span>
-          <span className="text-slate-300">/</span>
-          <span className="text-slate-700 font-medium truncate max-w-[200px]">
-            {task.title}
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div
-            className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium ring-1 ring-inset ${sStyle.bg} ${sStyle.text} ${sStyle.ring}`}
-          >
-            <span
-              className={`h-1.5 w-1.5 rounded-full ${isOverdue ? "animate-pulse" : ""} ${
-                displayStatus === "overdue"
-                  ? "bg-red-500"
-                  : displayStatus === "completed"
-                    ? "bg-emerald-500"
-                    : displayStatus === "in_progress"
-                      ? "bg-blue-500"
-                      : displayStatus === "rejected"
-                        ? "bg-red-500"
-                        : "bg-slate-400"
-              }`}
-            />
-            {statusCfg.label}
-          </div>
-        </div>
+      {/* ════════ BREADCRUMB / HEADER ════════ */}
+      <div className="flex items-center justify-between gap-3 py-4 sm:py-5">
+        <button
+          onClick={() => router.back()}
+          className="-ml-2 inline-flex min-h-[44px] items-center gap-1.5 rounded-lg px-2 text-sm text-slate-500 transition-colors hover:text-slate-900"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          <span className="hidden sm:inline">Back</span>
+        </button>
+        <span
+          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 ring-inset ${statusBadge.cls}`}
+        >
+          <span
+            className={`h-1.5 w-1.5 rounded-full ${statusBadge.dot} ${
+              isOverdue ? "animate-pulse" : ""
+            }`}
+          />
+          {statusBadge.label}
+        </span>
       </div>
 
-      {/* Main layout: content + sidebar */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
-        {/* Left column */}
-        <div className="space-y-6 min-w-0">
-          {/* Hero section — premium alert card */}
-          <div
-            className={`relative overflow-hidden rounded-2xl border ${
-              isOverdue
-                ? "border-red-200 bg-gradient-to-br from-red-50 via-red-50/80 to-orange-50"
-                : task.status === "completed"
-                  ? "border-emerald-200 bg-gradient-to-br from-emerald-50 via-emerald-50/80 to-teal-50"
-                  : task.status === "rejected"
-                    ? "border-red-200 bg-gradient-to-br from-red-50 via-rose-50/80 to-pink-50"
-                    : "border-slate-200 bg-gradient-to-br from-slate-50 via-white to-indigo-50/30"
-            }`}
-          >
-            {/* Subtle glow */}
-            <div
-              className={`absolute -top-20 -right-20 w-60 h-60 rounded-full blur-3xl opacity-20 ${
-                isOverdue
-                  ? "bg-red-300"
-                  : task.status === "completed"
-                    ? "bg-emerald-300"
-                    : "bg-indigo-300"
-              }`}
-            />
-            <div className="relative p-6 sm:p-8">
-              <div className="flex flex-wrap items-center gap-2 mb-4">
-                <span
-                  className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${pStyle.bg} ${pStyle.text}`}
-                >
-                  <span
-                    className={`h-1.5 w-1.5 rounded-full ${pStyle.dot}`}
-                  />
-                  {priorityCfg.label} Priority
-                </span>
-                {isOverdue && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-2.5 py-1 text-[11px] font-semibold text-red-700 task-pulse-badge">
-                    <AlertTriangle className="h-3 w-3" />
-                    Overdue
-                  </span>
-                )}
-                {task.status === "rejected" && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-2.5 py-1 text-[11px] font-semibold text-red-700">
-                    <XCircle className="h-3 w-3" />
-                    Rejected
-                  </span>
-                )}
-              </div>
-              <h1
-                className={`text-xl sm:text-2xl font-bold leading-tight tracking-tight ${
-                  isOverdue
-                    ? "text-red-900"
-                    : task.status === "completed"
-                      ? "text-emerald-900"
-                      : "text-slate-900"
-                }`}
-              >
-                {task.title}
-              </h1>
-              {isOverdue && (
-                <div className="mt-3 flex items-center gap-2 text-sm text-red-600 font-medium">
-                  <Clock className="h-4 w-4" />
-                  Overdue by {formatDistanceToNow(new Date(task.due_date))}
-                </div>
-              )}
-              {task.status === "completed" && task.completed_at && (
-                <div className="mt-3 flex items-center gap-2 text-sm text-emerald-600 font-medium">
-                  <CheckCircle2 className="h-4 w-4" />
-                  Completed{" "}
-                  {format(
-                    new Date(task.completed_at),
-                    "MMM d, yyyy 'at' h:mm a"
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
+      {/* Main grid */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_340px] lg:gap-6">
+        {/* ═════════════ LEFT COLUMN ═════════════ */}
+        <div className="min-w-0 space-y-5">
+          {/* HERO — Title + status */}
+          <HeroBanner
+            task={task}
+            isOverdue={isOverdue}
+            isCompleted={isCompleted}
+            isRejected={isRejected}
+          />
 
-          {/* Description card */}
-          {task.description && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
-              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-3">
-                Description
-              </p>
-              <p className="text-sm text-slate-600 leading-relaxed">
-                {task.description}
-              </p>
+          {/* OVERDUE — Strong escalation callout */}
+          {isOverdue && <EscalationCallout dueDate={task.due_date} />}
+
+          {/* PRIMARY CTA on mobile */}
+          {canAct && (
+            <div className="lg:hidden">
+              <PrimaryCTA
+                isOverdue={isOverdue}
+                isPending={isPending}
+                isInProgress={isInProgress}
+                isRejected={isRejected}
+                starting={starting}
+                resubmitting={resubmitting}
+                onStart={handleStartTask}
+                onComplete={() => setCompleteModalOpen(true)}
+                onResubmit={handleResubmit}
+              />
             </div>
           )}
 
-          {/* Metadata grid — 2x2 */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* DESCRIPTION */}
+          {task.description && (
+            <SectionCard title="Description">
+              <p className="text-[15px] leading-relaxed text-slate-700 whitespace-pre-wrap">
+                {task.description}
+              </p>
+            </SectionCard>
+          )}
+
+          {/* INFO GRID */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {task.site_location && (
-              <div className="group rounded-2xl border border-slate-200 bg-white p-4 transition-all duration-200 hover:shadow-sm hover:-translate-y-0.5">
-                <div className="flex items-start gap-3.5">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-                    <MapPin className="h-[18px] w-[18px]" />
-                  </div>
-                  <div className="min-w-0 pt-0.5">
-                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                      Location
-                    </p>
-                    <p className="text-sm font-semibold text-slate-900 truncate mt-0.5">
-                      {task.site_location}
-                    </p>
-                  </div>
-                </div>
-              </div>
+              <TaskInfoCard
+                tone="blue"
+                icon={<MapPin className="h-5 w-5" />}
+                label="Location"
+                value={task.site_location}
+              />
             )}
-            <div className="group rounded-2xl border border-slate-200 bg-white p-4 transition-all duration-200 hover:shadow-sm hover:-translate-y-0.5">
-              <div className="flex items-start gap-3.5">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
-                  <CalendarDays className="h-[18px] w-[18px]" />
-                </div>
-                <div className="pt-0.5">
-                  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                    Due Date
-                  </p>
-                  <p className="text-sm font-semibold text-slate-900 mt-0.5">
-                    {format(new Date(task.due_date), "MMM d, yyyy")}
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className="group rounded-2xl border border-slate-200 bg-white p-4 transition-all duration-200 hover:shadow-sm hover:-translate-y-0.5">
-              <div className="flex items-start gap-3.5">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
-                  <Clock className="h-[18px] w-[18px]" />
-                </div>
-                <div className="pt-0.5">
-                  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                    Due Time
-                  </p>
-                  <p className="text-sm font-semibold text-slate-900 mt-0.5">
-                    {format(new Date(task.due_date), "h:mm a")}
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className="group rounded-2xl border border-slate-200 bg-white p-4 transition-all duration-200 hover:shadow-sm hover:-translate-y-0.5">
-              <div className="flex items-start gap-3.5">
-                {creator ? (
+            <TaskInfoCard
+              tone="violet"
+              icon={<CalendarDays className="h-5 w-5" />}
+              label="Due Date"
+              value={format(new Date(task.due_date), "MMM d, yyyy")}
+              danger={isOverdue}
+            />
+            <TaskInfoCard
+              tone="amber"
+              icon={<Clock className="h-5 w-5" />}
+              label="Due Time"
+              value={format(new Date(task.due_date), "h:mm a")}
+              danger={isOverdue}
+            />
+            <TaskInfoCard
+              tone="slate"
+              icon={
+                creator ? (
                   <UserAvatar
                     name={creator.full_name}
                     avatarUrl={creator.avatar_url}
                     size="sm"
-                    className="ring-0 h-10 w-10"
+                    className="h-10 w-10 ring-0"
                   />
                 ) : (
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
-                    <User className="h-[18px] w-[18px]" />
-                  </div>
-                )}
-                <div className="min-w-0 pt-0.5">
-                  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                    Assigned By
-                  </p>
-                  <p className="text-sm font-semibold text-slate-900 truncate mt-0.5">
-                    {creator?.full_name ?? "Unknown"}
-                  </p>
-                </div>
-              </div>
-            </div>
+                  <User className="h-5 w-5" />
+                )
+              }
+              iconAsAvatar={!!creator}
+              label="Assigned By"
+              value={creator?.full_name ?? "Unknown"}
+            />
           </div>
 
-          {/* Evidence section */}
+          {/* EVIDENCE */}
           {evidence.length > 0 && (
-            <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
-              <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100">
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-50">
-                  <FileImage className="h-3.5 w-3.5 text-indigo-600" />
-                </div>
-                <h2 className="text-sm font-semibold text-slate-900">
-                  Evidence
-                </h2>
-                <span className="ml-auto text-xs text-slate-400 font-medium">
-                  {evidence.length}{" "}
-                  {evidence.length === 1 ? "submission" : "submissions"}
-                </span>
-              </div>
-              <div className="divide-y divide-slate-100">
+            <SectionCard
+              title="Evidence"
+              icon={<FileImage className="h-4 w-4 text-[#1E3A8A]" />}
+              meta={`${evidence.length} ${evidence.length === 1 ? "submission" : "submissions"}`}
+              compact
+            >
+              <div className="-mx-5 -mb-5 divide-y divide-slate-100">
                 {evidence.map((ev) => (
-                  <div key={ev.id} className="p-5 space-y-3">
+                  <div key={ev.id} className="space-y-3 px-5 py-4">
                     <div className="overflow-hidden rounded-xl border border-slate-200">
                       <img
                         src={ev.photo_url}
                         alt="Task evidence"
-                        className="w-full h-auto max-h-72 object-cover"
+                        className="w-full max-h-72 object-cover"
                       />
                     </div>
                     {ev.notes && (
-                      <div className="flex items-start gap-2.5 rounded-xl bg-slate-50 p-3.5">
-                        <MessageSquare className="h-4 w-4 mt-0.5 text-slate-400 shrink-0" />
-                        <p className="text-sm text-slate-600 leading-relaxed">
+                      <div className="flex items-start gap-2.5 rounded-xl bg-slate-50 p-3">
+                        <MessageSquare className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                        <p className="text-sm leading-relaxed text-slate-700">
                           {ev.notes}
                         </p>
                       </div>
                     )}
                     <p className="text-xs text-slate-400">
-                      {format(
-                        new Date(ev.submitted_at),
-                        "MMM d, yyyy 'at' h:mm a"
-                      )}
+                      {format(new Date(ev.submitted_at), "MMM d, yyyy 'at' h:mm a")}
                     </p>
                   </div>
                 ))}
               </div>
-            </div>
+            </SectionCard>
           )}
 
-          {/* Activity timeline (reviews) */}
+          {/* ACTIVITY / REVIEWS */}
           {reviews.length > 0 && (
-            <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
-              <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100">
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50">
-                  <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
-                </div>
-                <h2 className="text-sm font-semibold text-slate-900">
-                  Activity
-                </h2>
-                <span className="ml-auto text-xs text-slate-400 font-medium">
-                  {reviews.length}{" "}
-                  {reviews.length === 1 ? "review" : "reviews"}
-                </span>
-              </div>
-              <div className="p-5">
-                <div className="relative pl-6 space-y-6">
-                  {/* Timeline line */}
-                  <div className="absolute left-[7px] top-2 bottom-2 w-px bg-slate-200" />
-                  {reviews.map((review) => {
-                    const reviewer = review.reviewed_by;
-                    const isApproved = review.action === "approved";
-                    return (
-                      <div key={review.id} className="relative">
-                        {/* Timeline dot */}
-                        <div
-                          className={`absolute -left-6 top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full ring-4 ring-white ${
-                            isApproved ? "bg-emerald-500" : "bg-red-500"
-                          }`}
-                        />
-                        <div className="space-y-1.5">
-                          <div className="flex flex-wrap items-center gap-2">
-                            {reviewer && (
-                              <UserAvatar
-                                name={reviewer.full_name}
-                                avatarUrl={reviewer.avatar_url}
-                                size="sm"
-                                className="ring-0 h-6 w-6 text-[10px]"
-                              />
-                            )}
-                            <span className="text-sm font-medium text-slate-900">
-                              {reviewer?.full_name ?? "Unknown"}
-                            </span>
-                            <Badge
-                              variant="secondary"
-                              className={`text-[10px] font-semibold ${
-                                isApproved
-                                  ? "bg-emerald-50 text-emerald-700"
-                                  : "bg-red-50 text-red-700"
-                              }`}
-                            >
-                              {isApproved ? "Approved" : "Rejected"}
-                            </Badge>
-                          </div>
-                          {review.comment && (
-                            <p className="text-sm text-slate-600 leading-relaxed pl-8">
-                              &ldquo;{review.comment}&rdquo;
-                            </p>
+            <SectionCard
+              title="Activity"
+              icon={<ShieldCheck className="h-4 w-4 text-emerald-600" />}
+              meta={`${reviews.length} ${reviews.length === 1 ? "review" : "reviews"}`}
+              compact
+            >
+              <div className="relative space-y-5 pl-6">
+                <div className="absolute left-[7px] top-2 bottom-2 w-px bg-slate-200" />
+                {reviews.map((review) => {
+                  const reviewer = review.reviewed_by;
+                  const approved = review.action === "approved";
+                  return (
+                    <div key={review.id} className="relative">
+                      <div
+                        className={`absolute -left-6 top-1 h-3.5 w-3.5 rounded-full ring-4 ring-white ${
+                          approved ? "bg-emerald-500" : "bg-red-500"
+                        }`}
+                      />
+                      <div className="space-y-1.5">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {reviewer && (
+                            <UserAvatar
+                              name={reviewer.full_name}
+                              avatarUrl={reviewer.avatar_url}
+                              size="sm"
+                              className="h-6 w-6 text-[10px] ring-0"
+                            />
                           )}
-                          <p className="text-xs text-slate-400 pl-8">
-                            {format(
-                              new Date(review.reviewed_at),
-                              "MMM d, yyyy 'at' h:mm a"
-                            )}
-                          </p>
+                          <span className="text-sm font-medium text-slate-900">
+                            {reviewer?.full_name ?? "Unknown"}
+                          </span>
+                          <Badge
+                            variant="secondary"
+                            className={`text-[10px] font-semibold ${
+                              approved
+                                ? "bg-emerald-50 text-emerald-700"
+                                : "bg-red-50 text-red-700"
+                            }`}
+                          >
+                            {approved ? "Approved" : "Rejected"}
+                          </Badge>
                         </div>
+                        {review.comment && (
+                          <p className="pl-8 text-sm leading-relaxed text-slate-700">
+                            &ldquo;{review.comment}&rdquo;
+                          </p>
+                        )}
+                        <p className="pl-8 text-xs text-slate-400">
+                          {format(new Date(review.reviewed_at), "MMM d, yyyy 'at' h:mm a")}
+                        </p>
                       </div>
-                    );
-                  })}
-                </div>
+                    </div>
+                  );
+                })}
               </div>
-            </div>
+            </SectionCard>
           )}
         </div>
 
-        {/* Right column — sticky action panel (desktop) */}
-        <div className="hidden lg:block">
+        {/* ═════════════ RIGHT COLUMN (desktop) ═════════════ */}
+        <aside className="hidden lg:block">
           <div className="sticky top-6 space-y-4">
-            {/* Actions card */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
-              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+            {/* Actions */}
+            <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                 Actions
               </p>
 
-              {/* Primary CTA */}
-              {task.status === "pending" && (
-                <Button
-                  onClick={handleStartTask}
-                  disabled={starting}
-                  className="w-full h-11 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-sm transition-all duration-200 hover:shadow-md"
-                >
-                  {starting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Starting…
-                    </>
-                  ) : (
-                    <>
-                      <Play className="mr-2 h-4 w-4" />
-                      Start Task
-                    </>
-                  )}
-                </Button>
+              {canAct && (
+                <PrimaryCTA
+                  isOverdue={isOverdue}
+                  isPending={isPending}
+                  isInProgress={isInProgress}
+                  isRejected={isRejected}
+                  starting={starting}
+                  resubmitting={resubmitting}
+                  onStart={handleStartTask}
+                  onComplete={() => setCompleteModalOpen(true)}
+                  onResubmit={handleResubmit}
+                />
               )}
-              {task.status === "in_progress" && (
-                <Button
-                  onClick={() => setCompleteModalOpen(true)}
-                  className="w-full h-11 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-sm transition-all duration-200 hover:shadow-md"
-                >
-                  <Camera className="mr-2 h-4 w-4" />
-                  Submit Completion
-                </Button>
-              )}
-              {task.status === "rejected" && (
-                <Button
-                  onClick={async () => {
-                    setResubmitting(true);
-                    const result = await resubmitTask(task.id);
-                    if (result.error) {
-                      toast.error(result.error);
-                      setResubmitting(false);
-                      return;
-                    }
-                    toast.success("Task reopened — submit new evidence");
-                    router.refresh();
-                    setResubmitting(false);
-                  }}
-                  disabled={resubmitting}
-                  className="w-full h-11 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold shadow-sm transition-all duration-200 hover:shadow-md"
-                >
-                  {resubmitting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Reopening…
-                    </>
-                  ) : (
-                    <>
-                      <Play className="mr-2 h-4 w-4" />
-                      Resubmit Task
-                    </>
-                  )}
-                </Button>
-              )}
-              {task.status === "completed" && (
-                <div className="flex items-center gap-2.5 rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3">
-                  <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
+
+              {isCompleted && (
+                <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                  <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
                   <div>
-                    <p className="text-sm font-semibold text-emerald-800">
-                      Completed
+                    <p className="text-sm font-bold text-emerald-900">Completed</p>
+                    <p className="text-xs text-emerald-700">
+                      Awaiting supervisor review
                     </p>
-                    <p className="text-xs text-emerald-600">Awaiting review</p>
                   </div>
                 </div>
               )}
 
               {/* Secondary actions */}
-              {canAct && (
-                <div className="space-y-1 pt-1">
-                  {task.status === "in_progress" && (
-                    <button
-                      onClick={() => setCompleteModalOpen(true)}
-                      className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors"
-                    >
-                      <Upload className="h-4 w-4 text-slate-400" />
-                      Upload Photos
-                    </button>
-                  )}
-                  <button className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors">
-                    <MessageSquare className="h-4 w-4 text-slate-400" />
-                    Add Comment
-                  </button>
-                  <button className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors">
-                    <Flag className="h-4 w-4 text-slate-400" />
-                    Report Issue
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Details summary card */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
-              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                Details
-              </p>
-              <div className="space-y-3.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-slate-500">Priority</span>
-                  <span
-                    className={`inline-flex items-center gap-1.5 text-xs font-medium ${pStyle.text}`}
-                  >
-                    <span
-                      className={`h-1.5 w-1.5 rounded-full ${pStyle.dot}`}
-                    />
-                    {priorityCfg.label}
-                  </span>
-                </div>
-                <div className="h-px bg-slate-100" />
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-slate-500">Status</span>
-                  <span className={`text-xs font-medium ${sStyle.text}`}>
-                    {statusCfg.label}
-                  </span>
-                </div>
-                <div className="h-px bg-slate-100" />
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-slate-500">Due</span>
-                  <span className="text-xs font-medium text-slate-700">
-                    {format(new Date(task.due_date), "MMM d, h:mm a")}
-                  </span>
-                </div>
-                <div className="h-px bg-slate-100" />
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-slate-500">Evidence</span>
-                  <span className="text-xs font-medium text-slate-700">
-                    {evidence.length} uploaded
-                  </span>
-                </div>
-                <div className="h-px bg-slate-100" />
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-slate-500">Reviews</span>
-                  <span className="text-xs font-medium text-slate-700">
-                    {reviews.length}
-                  </span>
-                </div>
+              <div className="space-y-1 pt-1">
+                {isInProgress && (
+                  <SecondaryAction
+                    icon={<Upload className="h-4 w-4" />}
+                    label="Upload Photos"
+                    onClick={() => setCompleteModalOpen(true)}
+                  />
+                )}
+                <SecondaryAction
+                  icon={<MessageSquare className="h-4 w-4" />}
+                  label="Add Comment"
+                />
+                <SecondaryAction
+                  icon={<Flag className="h-4 w-4" />}
+                  label="Report Issue"
+                />
               </div>
             </div>
+
+            {/* Details summary */}
+            <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                Details
+              </p>
+              <DetailRow
+                label="Priority"
+                value={
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-semibold ring-1 ${priorityChip[task.priority]}`}
+                  >
+                    <span
+                      className={`h-1 w-1 rounded-full ${priorityDot[task.priority]}`}
+                    />
+                    {priorityLabel[task.priority]}
+                  </span>
+                }
+              />
+              <DetailRow
+                label="Status"
+                value={
+                  <span
+                    className={`text-xs font-semibold ${
+                      isOverdue || isRejected
+                        ? "text-red-600"
+                        : isCompleted
+                          ? "text-emerald-700"
+                          : isInProgress
+                            ? "text-blue-700"
+                            : "text-slate-700"
+                    }`}
+                  >
+                    {statusBadge.label}
+                  </span>
+                }
+              />
+              <DetailRow
+                label="Due"
+                value={
+                  <span
+                    className={`text-xs font-semibold ${isOverdue ? "text-red-600" : "text-slate-700"}`}
+                  >
+                    {format(new Date(task.due_date), "MMM d, h:mm a")}
+                  </span>
+                }
+              />
+              <DetailRow
+                label="Evidence"
+                value={
+                  <span className="text-xs font-semibold text-slate-700">
+                    {evidence.length} uploaded
+                  </span>
+                }
+              />
+              <DetailRow
+                label="Reviews"
+                value={
+                  <span className="text-xs font-semibold text-slate-700">
+                    {reviews.length}
+                  </span>
+                }
+                last
+              />
+            </div>
           </div>
-        </div>
+        </aside>
       </div>
 
-      {/* Mobile sticky bottom action bar */}
+      {/* ════════ MOBILE STICKY BOTTOM CTA ════════ */}
       {canAct && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-slate-200 bg-white/95 backdrop-blur-lg px-4 py-3 lg:hidden">
-          <div className="flex items-center gap-3 max-w-lg mx-auto">
-            {task.status === "pending" && (
-              <Button
-                onClick={handleStartTask}
-                disabled={starting}
-                className="flex-1 h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-sm transition-all duration-200"
-              >
-                {starting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Starting…
-                  </>
-                ) : (
-                  <>
-                    <Play className="mr-2 h-4 w-4" />
-                    Start Task
-                  </>
-                )}
-              </Button>
-            )}
-            {task.status === "in_progress" && (
-              <Button
-                onClick={() => setCompleteModalOpen(true)}
-                className="flex-1 h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-sm transition-all duration-200"
-              >
-                <Camera className="mr-2 h-4 w-4" />
-                Submit Completion
-              </Button>
-            )}
-            {task.status === "rejected" && (
-              <Button
-                onClick={async () => {
-                  setResubmitting(true);
-                  const result = await resubmitTask(task.id);
-                  if (result.error) {
-                    toast.error(result.error);
-                    setResubmitting(false);
-                    return;
-                  }
-                  toast.success("Task reopened — submit new evidence");
-                  router.refresh();
-                  setResubmitting(false);
-                }}
-                disabled={resubmitting}
-                className="flex-1 h-12 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold shadow-sm transition-all duration-200"
-              >
-                {resubmitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Reopening…
-                  </>
-                ) : (
-                  <>
-                    <Play className="mr-2 h-4 w-4" />
-                    Resubmit
-                  </>
-                )}
-              </Button>
-            )}
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-4px_20px_-8px_rgba(0,0,0,0.1)] backdrop-blur-xl lg:hidden">
+          <div className="mx-auto max-w-lg">
+            <PrimaryCTA
+              isOverdue={isOverdue}
+              isPending={isPending}
+              isInProgress={isInProgress}
+              isRejected={isRejected}
+              starting={starting}
+              resubmitting={resubmitting}
+              onStart={handleStartTask}
+              onComplete={() => setCompleteModalOpen(true)}
+              onResubmit={handleResubmit}
+            />
           </div>
         </div>
       )}
 
-      {/* Complete task modal */}
       <CompleteTaskModal
         open={completeModalOpen}
         onOpenChange={setCompleteModalOpen}
@@ -683,5 +484,360 @@ export function TaskDetailClient({
         taskTitle={task.title}
       />
     </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════
+   HERO BANNER — Title + status chips + urgency
+   ══════════════════════════════════════════════════ */
+
+function HeroBanner({
+  task,
+  isOverdue,
+  isCompleted,
+  isRejected,
+}: {
+  task: Task;
+  isOverdue: boolean;
+  isCompleted: boolean;
+  isRejected: boolean;
+}) {
+  const wrapperCls = isOverdue
+    ? "border-2 border-red-300 bg-gradient-to-br from-red-50 via-red-50 to-rose-100 shadow-red-100"
+    : isCompleted
+      ? "border border-emerald-200 bg-gradient-to-br from-emerald-50 via-emerald-50 to-teal-50"
+      : isRejected
+        ? "border-2 border-red-300 bg-gradient-to-br from-red-50 via-rose-50 to-pink-50"
+        : "border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-indigo-50/40";
+
+  const titleCls = isOverdue
+    ? "text-red-900"
+    : isCompleted
+      ? "text-emerald-900"
+      : isRejected
+        ? "text-red-900"
+        : "text-slate-900";
+
+  return (
+    <div className={`relative overflow-hidden rounded-2xl shadow-sm ${wrapperCls}`}>
+      <div className="relative p-5 sm:p-6">
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <span
+            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold ring-1 ${priorityChip[task.priority]}`}
+          >
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${priorityDot[task.priority]}`}
+            />
+            {priorityLabel[task.priority]} Priority
+          </span>
+          {isOverdue && (
+            <span className="inline-flex animate-pulse items-center gap-1.5 rounded-full bg-red-600 px-2.5 py-1 text-[11px] font-bold text-white shadow-sm">
+              <AlertTriangle className="h-3 w-3" />
+              Overdue
+            </span>
+          )}
+          {isRejected && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-red-600 px-2.5 py-1 text-[11px] font-bold text-white">
+              <XCircle className="h-3 w-3" />
+              Rejected
+            </span>
+          )}
+          {isCompleted && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-2.5 py-1 text-[11px] font-bold text-white">
+              <CheckCircle2 className="h-3 w-3" />
+              Completed
+            </span>
+          )}
+        </div>
+
+        <h1
+          className={`text-2xl font-extrabold leading-tight tracking-tight sm:text-[28px] ${titleCls}`}
+        >
+          {task.title}
+        </h1>
+
+        {isOverdue && (
+          <div className="mt-3 inline-flex items-center gap-2 rounded-lg bg-red-100 px-3 py-1.5 text-sm font-bold text-red-800">
+            <Clock className="h-4 w-4" />
+            Overdue by {formatDistanceToNowStrict(new Date(task.due_date))}
+          </div>
+        )}
+        {isCompleted && task.completed_at && (
+          <div className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-emerald-700">
+            <CheckCircle2 className="h-4 w-4" />
+            Completed {format(new Date(task.completed_at), "MMM d, yyyy 'at' h:mm a")}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════
+   ESCALATION CALLOUT — strong red urgency block
+   ══════════════════════════════════════════════════ */
+
+function EscalationCallout({ dueDate }: { dueDate: string }) {
+  return (
+    <div
+      role="alert"
+      className="flex items-start gap-3 rounded-2xl border-2 border-red-300 bg-red-50 px-4 py-4 shadow-sm"
+    >
+      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-red-500 text-white shadow-md">
+        <Zap className="h-5 w-5" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-extrabold leading-tight text-red-900">
+          Action needed — risk of escalation
+        </p>
+        <p className="mt-1 text-xs leading-relaxed text-red-700">
+          This task was due{" "}
+          <span className="font-bold">
+            {formatDistanceToNowStrict(new Date(dueDate))} ago
+          </span>
+          . Complete it now to avoid escalation to your supervisor.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════
+   PRIMARY CTA — large, color-changing main button
+   Red when overdue, deep blue otherwise.
+   ══════════════════════════════════════════════════ */
+
+function PrimaryCTA({
+  isOverdue,
+  isPending,
+  isInProgress,
+  isRejected,
+  starting,
+  resubmitting,
+  onStart,
+  onComplete,
+  onResubmit,
+}: {
+  isOverdue: boolean;
+  isPending: boolean;
+  isInProgress: boolean;
+  isRejected: boolean;
+  starting: boolean;
+  resubmitting: boolean;
+  onStart: () => void;
+  onComplete: () => void;
+  onResubmit: () => void;
+}) {
+  const baseCls =
+    "h-14 w-full rounded-2xl text-base font-bold shadow-lg transition active:scale-[0.98] flex items-center justify-center gap-2";
+
+  if (isPending) {
+    return (
+      <Button
+        onClick={onStart}
+        disabled={starting}
+        className={`${baseCls} ${
+          isOverdue
+            ? "bg-red-600 hover:bg-red-700 text-white shadow-red-500/30"
+            : "bg-[#1E3A8A] hover:bg-[#1E3A8A]/90 text-white shadow-indigo-500/25"
+        }`}
+      >
+        {starting ? (
+          <>
+            <Loader2 className="h-5 w-5 animate-spin" />
+            Starting…
+          </>
+        ) : (
+          <>
+            <Play className="h-5 w-5" fill="currentColor" />
+            {isOverdue ? "Start Now" : "Start Task"}
+          </>
+        )}
+      </Button>
+    );
+  }
+
+  if (isInProgress) {
+    return (
+      <Button
+        onClick={onComplete}
+        className={`${baseCls} ${
+          isOverdue
+            ? "bg-red-600 hover:bg-red-700 text-white shadow-red-500/30"
+            : "bg-[#1E3A8A] hover:bg-[#1E3A8A]/90 text-white shadow-indigo-500/25"
+        }`}
+      >
+        <Camera className="h-5 w-5" />
+        Submit Completion
+      </Button>
+    );
+  }
+
+  if (isRejected) {
+    return (
+      <Button
+        onClick={onResubmit}
+        disabled={resubmitting}
+        className={`${baseCls} bg-amber-500 hover:bg-amber-600 text-white shadow-amber-500/30`}
+      >
+        {resubmitting ? (
+          <>
+            <Loader2 className="h-5 w-5 animate-spin" />
+            Reopening…
+          </>
+        ) : (
+          <>
+            <Play className="h-5 w-5" fill="currentColor" />
+            Resubmit Task
+          </>
+        )}
+      </Button>
+    );
+  }
+
+  return null;
+}
+
+/* ══════════════════════════════════════════════════
+   TASK INFO CARD — Location / Due / Assignee cards
+   ══════════════════════════════════════════════════ */
+
+function TaskInfoCard({
+  tone,
+  icon,
+  iconAsAvatar,
+  label,
+  value,
+  danger,
+}: {
+  tone: "blue" | "violet" | "amber" | "slate";
+  icon: React.ReactNode;
+  iconAsAvatar?: boolean;
+  label: string;
+  value: string;
+  danger?: boolean;
+}) {
+  const tones = {
+    blue: "bg-blue-50 text-blue-600",
+    violet: "bg-violet-50 text-violet-600",
+    amber: "bg-amber-50 text-amber-600",
+    slate: "bg-slate-100 text-slate-500",
+  };
+
+  return (
+    <div
+      className={`rounded-2xl border bg-white p-4 transition hover:shadow-sm ${
+        danger ? "border-red-200" : "border-slate-200"
+      }`}
+    >
+      <div className="flex items-start gap-3">
+        {iconAsAvatar ? (
+          <div className="shrink-0">{icon}</div>
+        ) : (
+          <div
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${tones[tone]}`}
+          >
+            {icon}
+          </div>
+        )}
+        <div className="min-w-0 pt-0.5">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+            {label}
+          </p>
+          <p
+            className={`mt-0.5 truncate text-sm font-bold ${
+              danger ? "text-red-700" : "text-slate-900"
+            }`}
+          >
+            {value}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════
+   SECTION CARD
+   ══════════════════════════════════════════════════ */
+
+function SectionCard({
+  title,
+  icon,
+  meta,
+  compact,
+  children,
+}: {
+  title: string;
+  icon?: React.ReactNode;
+  meta?: string;
+  compact?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div
+        className={`flex items-center gap-2 px-5 ${
+          compact ? "border-b border-slate-100 py-3" : "pt-5 pb-2"
+        }`}
+      >
+        {icon && (
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-50">
+            {icon}
+          </span>
+        )}
+        <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+          {title}
+        </h2>
+        {meta && (
+          <span className="ml-auto text-xs font-medium text-slate-400">{meta}</span>
+        )}
+      </div>
+      <div className="px-5 pb-5">{children}</div>
+    </section>
+  );
+}
+
+/* ══════════════════════════════════════════════════
+   SIDE PANEL HELPERS
+   ══════════════════════════════════════════════════ */
+
+function SecondaryAction({
+  icon,
+  label,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick?: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex min-h-[44px] w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900"
+    >
+      <span className="text-slate-400">{icon}</span>
+      {label}
+    </button>
+  );
+}
+
+function DetailRow({
+  label,
+  value,
+  last,
+}: {
+  label: string;
+  value: React.ReactNode;
+  last?: boolean;
+}) {
+  return (
+    <>
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-xs text-slate-500">{label}</span>
+        {value}
+      </div>
+      {!last && <div className="h-px bg-slate-100" />}
+    </>
   );
 }

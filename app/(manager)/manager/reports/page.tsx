@@ -1,14 +1,20 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { ReportsClient } from "./client";
+import { ManagerReportsClient } from "./client";
 
-export default async function ReportsPage() {
+/**
+ * Manager → Reports & Export
+ *
+ * Loads filter option lists (staff and site locations).
+ * Actual report data is fetched on the client whenever filters change so
+ * that the UI is responsive without a server round-trip per keystroke.
+ */
+export default async function ManagerReportsPage() {
   const supabase = await createClient();
 
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
   if (!user) redirect("/login");
 
   const { data: profile } = await supabase
@@ -16,31 +22,31 @@ export default async function ReportsPage() {
     .select("*")
     .eq("id", user.id)
     .single();
-
   if (!profile || profile.role !== "manager") redirect("/login");
 
-  // Fetch staff profiles for the filter dropdown
-  const { data: staffList } = await supabase
-    .from("profiles")
-    .select("id, full_name, role")
-    .order("full_name");
+  const [{ data: staffList }, { data: siteRows }] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("id, full_name, role")
+      .in("role", ["staff", "supervisor"])
+      .order("full_name"),
+    supabase
+      .from("tasks")
+      .select("site_location")
+      .not("site_location", "is", null),
+  ]);
 
-  // Fetch distinct site locations
-  const { data: tasks } = await supabase
-    .from("tasks")
-    .select("site_location")
-    .not("site_location", "is", null);
-
-  const siteLocations = [
-    ...new Set(
-      (tasks || [])
+  const siteLocations = Array.from(
+    new Set(
+      (siteRows || [])
         .map((t: { site_location: string | null }) => t.site_location)
-        .filter(Boolean)
+        .filter((s): s is string => Boolean(s)),
     ),
-  ] as string[];
+  ).sort();
 
   return (
-    <ReportsClient
+    <ManagerReportsClient
+      profile={profile}
       staffList={staffList || []}
       siteLocations={siteLocations}
     />

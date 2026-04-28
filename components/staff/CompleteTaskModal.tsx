@@ -17,24 +17,30 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   Upload,
-  X,
   Camera,
   Loader2,
   CheckCircle2,
-  ImagePlus,
   FileText,
   ArrowRight,
   ArrowLeft,
   Trash2,
   Pencil,
   Sparkles,
+  ImagePlus,
+  PartyPopper,
 } from "lucide-react";
 
+/* ───── Design tokens ─────
+   Primary  : #1E3A8A (deep blue)
+   Success  : #22C55E (green)
+*/
+
 type Step = "upload" | "details" | "review";
-const STEPS: { key: Step; label: string }[] = [
-  { key: "upload", label: "Photo" },
-  { key: "details", label: "Details" },
-  { key: "review", label: "Review" },
+
+const STEPS: { key: Step; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { key: "upload", label: "Photo", icon: Camera },
+  { key: "details", label: "Details", icon: FileText },
+  { key: "review", label: "Review", icon: CheckCircle2 },
 ];
 
 interface CompleteTaskModalProps {
@@ -52,6 +58,7 @@ export function CompleteTaskModal({
 }: CompleteTaskModalProps) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [step, setStep] = useState<Step>("upload");
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -63,6 +70,8 @@ export function CompleteTaskModal({
   const [success, setSuccess] = useState(false);
 
   const stepIndex = STEPS.findIndex((s) => s.key === step);
+
+  /* ── File handling ── */
 
   function handleFileSelect(selectedFile: File) {
     if (!selectedFile.type.startsWith("image/")) {
@@ -119,6 +128,8 @@ export function CompleteTaskModal({
     else if (step === "review") setStep("details");
   }
 
+  /* ── Submission ── */
+
   async function handleSubmit() {
     if (!file) {
       toast.error("Please upload a photo as evidence");
@@ -137,10 +148,7 @@ export function CompleteTaskModal({
 
       const { error: uploadError } = await supabase.storage
         .from("task-evidence")
-        .upload(fileName, file, {
-          cacheControl: "3600",
-          upsert: false,
-        });
+        .upload(fileName, file, { cacheControl: "3600", upsert: false });
 
       if (uploadError) {
         toast.error(`Upload failed: ${uploadError.message}`);
@@ -167,9 +175,8 @@ export function CompleteTaskModal({
       }
 
       setSuccess(true);
-
-      await new Promise((resolve) => setTimeout(resolve, 1200));
-      toast.success("Task completed successfully!");
+      await new Promise((r) => setTimeout(r, 1400));
+      toast.success("Great job! Task submitted for review 🎉");
       resetState();
       onOpenChange(false);
       router.push("/staff/dashboard");
@@ -181,53 +188,29 @@ export function CompleteTaskModal({
     }
   }
 
-  // -- Step icon helper --
-  function StepIcon({ stepKey, idx }: { stepKey: Step; idx: number }) {
-    const isCompleted =
-      (stepKey === "upload" && !!file && stepIndex > 0) ||
-      (stepKey === "details" && stepIndex > 1);
-    const isActive = step === stepKey;
-
-    if (isCompleted) {
-      return (
-        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-white shadow-sm transition-all duration-300">
-          <CheckCircle2 className="h-4 w-4" />
-        </span>
-      );
-    }
-    if (isActive) {
-      return (
-        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 text-white shadow-md ring-4 ring-indigo-100 transition-all duration-300">
-          {stepKey === "upload" && <Camera className="h-4 w-4" />}
-          {stepKey === "details" && <FileText className="h-4 w-4" />}
-          {stepKey === "review" && <CheckCircle2 className="h-4 w-4" />}
-        </span>
-      );
-    }
-    return (
-      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-400 text-xs font-bold transition-all duration-300">
-        {idx + 1}
-      </span>
-    );
-  }
-
-  // -- Success overlay --
+  /* ══════════════════════════════════════════════════
+     SUCCESS OVERLAY
+     ══════════════════════════════════════════════════ */
   if (success) {
     return (
       <Dialog open={open} onOpenChange={() => {}}>
         <DialogContent
           showCloseButton={false}
-          className="max-h-[100dvh] sm:max-h-[85vh] sm:max-w-xl max-sm:h-[100dvh] max-sm:max-w-full max-sm:rounded-none max-sm:border-0 flex flex-col items-center justify-center gap-0 p-0"
+          className="max-h-[100dvh] sm:max-h-[85vh] sm:max-w-md max-sm:h-[100dvh] max-sm:max-w-full max-sm:rounded-none max-sm:border-0 flex flex-col items-center justify-center p-0"
         >
-          <div className="flex flex-col items-center justify-center py-20 px-8 completion-success-enter">
-            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100 mb-6">
-              <CheckCircle2 className="h-10 w-10 text-emerald-600" />
+          <div className="flex flex-col items-center justify-center py-20 px-8 text-center">
+            <div className="relative mb-6">
+              <div className="absolute inset-0 rounded-full bg-emerald-200 blur-2xl opacity-60 animate-pulse" />
+              <div className="relative flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-lg shadow-emerald-500/40">
+                <CheckCircle2 className="h-12 w-12 text-white" strokeWidth={2.5} />
+              </div>
             </div>
-            <h3 className="text-xl font-semibold text-slate-900 mb-2">
-              Task Completed
+            <h3 className="text-2xl font-extrabold text-slate-900 mb-2 flex items-center gap-2">
+              Nice work! <PartyPopper className="h-6 w-6 text-amber-500" />
             </h3>
-            <p className="text-sm text-slate-500 text-center">
-              Your submission has been sent for review.
+            <p className="text-sm text-slate-500 max-w-xs leading-relaxed">
+              Your submission has been sent for supervisor review. You&apos;ll be
+              notified when it&apos;s approved.
             </p>
           </div>
         </DialogContent>
@@ -235,366 +218,566 @@ export function CompleteTaskModal({
     );
   }
 
+  /* ══════════════════════════════════════════════════
+     MAIN MODAL
+     ══════════════════════════════════════════════════ */
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[100dvh] sm:max-h-[85vh] sm:max-w-xl max-sm:h-[100dvh] max-sm:max-w-full max-sm:rounded-none max-sm:border-0 flex flex-col gap-0 p-0">
+      <DialogContent className="max-h-[100dvh] sm:max-h-[90vh] sm:max-w-xl max-sm:h-[100dvh] max-sm:max-w-full max-sm:rounded-none max-sm:border-0 flex flex-col gap-0 p-0">
         {/* ── Header ── */}
-        <div className="px-6 pt-6 pb-2">
+        <div className="px-5 sm:px-6 pt-5 pb-3">
           <DialogHeader>
-            <DialogTitle className="text-lg font-semibold text-slate-900">
+            <DialogTitle className="text-lg sm:text-xl font-extrabold text-slate-900">
               Submit Completion
             </DialogTitle>
-            <DialogDescription className="text-xs text-slate-400 line-clamp-1 mt-0.5">
+            <DialogDescription className="text-xs text-slate-500 mt-1 line-clamp-1">
               {taskTitle}
             </DialogDescription>
           </DialogHeader>
         </div>
 
         {/* ── Stepper ── */}
-        <div className="px-6 pt-2 pb-4">
-          <div className="flex items-center">
-            {STEPS.map((s, i) => (
-              <div key={s.key} className="flex items-center flex-1 last:flex-none">
-                <button
-                  type="button"
-                  onClick={() => {
-                    // Allow clicking completed steps to jump back
-                    if (i < stepIndex) setStep(s.key);
-                  }}
-                  disabled={i > stepIndex}
-                  className="flex flex-col items-center gap-1.5 group disabled:cursor-default cursor-pointer"
-                >
-                  <StepIcon stepKey={s.key} idx={i} />
-                  <span
-                    className={`text-[11px] font-medium tracking-wide transition-colors ${
-                      step === s.key
-                        ? "text-indigo-600"
-                        : i < stepIndex
-                          ? "text-emerald-600"
-                          : "text-slate-400"
-                    }`}
-                  >
-                    {s.label}
-                  </span>
-                </button>
-                {i < STEPS.length - 1 && (
-                  <div className="flex-1 mx-3 mt-[-18px]">
-                    <div className="h-0.5 rounded-full bg-slate-100 relative overflow-hidden">
-                      <div
-                        className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-indigo-500 to-emerald-500 transition-all duration-500 ease-out"
-                        style={{ width: i < stepIndex ? "100%" : "0%" }}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
+        <Stepper step={step} stepIndex={stepIndex} hasFile={!!file} setStep={setStep} />
 
-        <div className="mx-6 border-t border-slate-100" />
+        <div className="mx-5 sm:mx-6 border-t border-slate-100" />
 
         {/* ── Body ── */}
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-          {/* === STEP 1: Upload === */}
+        <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-5 space-y-5">
           {step === "upload" && (
-            <div className="space-y-4 completion-step-enter">
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900 mb-1">
-                  Upload Evidence
-                </h3>
-                <p className="text-xs text-slate-400">
-                  Take a photo or upload an image of the completed work.
-                </p>
-              </div>
-
-              {preview ? (
-                <div className="relative overflow-hidden rounded-2xl border border-slate-200 shadow-sm group">
-                  <img
-                    src={preview}
-                    alt="Evidence preview"
-                    className="w-full h-64 object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
-                  <button
-                    type="button"
-                    onClick={clearFile}
-                    className="absolute top-3 right-3 flex items-center gap-1.5 rounded-full bg-black/50 backdrop-blur-sm px-3 py-1.5 text-xs font-medium text-white hover:bg-red-600 transition-all duration-200 min-h-[36px]"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Remove
-                  </button>
-                  {uploading && (
-                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-4 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="h-1.5 flex-1 rounded-full bg-white/20">
-                          <div
-                            className="h-1.5 rounded-full bg-gradient-to-r from-indigo-400 to-indigo-500 transition-all duration-300"
-                            style={{ width: `${uploadProgress}%` }}
-                          />
-                        </div>
-                        <span className="text-[11px] text-white font-medium tabular-nums">
-                          {uploadProgress}%
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-white/70 mt-1.5">{file?.name}</p>
-                    </div>
-                  )}
-                  {!uploading && (
-                    <div className="absolute bottom-3 left-3 completion-badge-enter">
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500 px-3 py-1.5 text-[11px] font-semibold text-white shadow-lg">
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                        Photo ready
-                      </span>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div
-                  onClick={() => fileInputRef.current?.click()}
-                  onDrop={handleDrop}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    setDragOver(true);
-                  }}
-                  onDragLeave={() => setDragOver(false)}
-                  className={`flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed py-14 transition-all duration-200 active:scale-[0.99] ${
-                    dragOver
-                      ? "border-indigo-400 bg-indigo-50/50 scale-[1.01] completion-dropzone-glow"
-                      : "border-slate-200 hover:border-indigo-300 hover:bg-slate-50/50"
-                  }`}
-                >
-                  <div
-                    className={`rounded-2xl p-4 mb-4 transition-all duration-200 ${
-                      dragOver
-                        ? "bg-indigo-100 scale-110"
-                        : "bg-slate-100 group-hover:bg-indigo-50"
-                    }`}
-                  >
-                    <ImagePlus
-                      className={`h-8 w-8 transition-colors duration-200 ${
-                        dragOver ? "text-indigo-500" : "text-slate-400"
-                      }`}
-                    />
-                  </div>
-                  <p className="text-sm font-semibold text-slate-700">
-                    Tap to take photo
-                  </p>
-                  <p className="mt-1 text-xs text-slate-400">
-                    or drag & drop · PNG, JPG up to 10MB
-                  </p>
-                </div>
-              )}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={handleInputChange}
-                className="hidden"
-              />
-            </div>
+            <UploadStep
+              preview={preview}
+              file={file}
+              dragOver={dragOver}
+              uploading={uploading}
+              uploadProgress={uploadProgress}
+              fileInputRef={fileInputRef}
+              onClear={clearFile}
+              onDrop={handleDrop}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOver(true);
+              }}
+              onDragLeave={() => setDragOver(false)}
+              onInputChange={handleInputChange}
+            />
           )}
 
-          {/* === STEP 2: Details === */}
           {step === "details" && (
-            <div className="space-y-4 completion-step-enter">
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900 mb-1">
-                  What did you do?
-                </h3>
-                <p className="text-xs text-slate-400">
-                  Describe the work completed, any issues encountered, or notes
-                  for review.
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label
-                  htmlFor="notes"
-                  className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider"
-                >
-                  Notes (optional)
-                </Label>
-                <div className="relative">
-                  <Textarea
-                    id="notes"
-                    placeholder="Describe the work completed, any issues encountered..."
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value.slice(0, 500))}
-                    rows={5}
-                    className="resize-none rounded-xl border-slate-200 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 text-sm leading-relaxed transition-all duration-200"
-                  />
-                  <span
-                    className={`absolute bottom-3 right-3 text-[10px] font-medium tabular-nums ${
-                      notes.length > 450 ? "text-amber-500" : "text-slate-300"
-                    }`}
-                  >
-                    {notes.length}/500
-                  </span>
-                </div>
-              </div>
-
-              {/* Quick-add note preview */}
-              {preview && (
-                <div className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/50 p-3">
-                  <img
-                    src={preview}
-                    alt="Thumbnail"
-                    className="h-10 w-10 rounded-lg object-cover ring-1 ring-slate-200"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-slate-700 truncate">
-                      {file?.name}
-                    </p>
-                    <p className="text-[10px] text-slate-400">Photo attached</p>
-                  </div>
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                </div>
-              )}
-            </div>
+            <DetailsStep
+              notes={notes}
+              onNotesChange={setNotes}
+              preview={preview}
+              fileName={file?.name}
+            />
           )}
 
-          {/* === STEP 3: Review === */}
           {step === "review" && (
-            <div className="space-y-4 completion-step-enter">
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900 mb-1">
-                  Review Submission
-                </h3>
-                <p className="text-xs text-slate-400">
-                  Double-check before submitting for supervisor review.
-                </p>
-              </div>
-
-              {/* Photo summary */}
-              <div className="rounded-2xl border border-slate-200 overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-3 bg-slate-50/70">
-                  <div className="flex items-center gap-2">
-                    <Camera className="h-3.5 w-3.5 text-slate-500" />
-                    <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-                      Photo Evidence
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setStep("upload")}
-                    className="flex items-center gap-1 text-[11px] font-medium text-indigo-600 hover:text-indigo-700 transition-colors min-h-[32px]"
-                  >
-                    <Pencil className="h-3 w-3" />
-                    Edit
-                  </button>
-                </div>
-                {preview && (
-                  <img
-                    src={preview}
-                    alt="Evidence"
-                    className="w-full h-44 object-cover"
-                  />
-                )}
-              </div>
-
-              {/* Notes summary */}
-              <div className="rounded-2xl border border-slate-200 overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-3 bg-slate-50/70">
-                  <div className="flex items-center gap-2">
-                    <FileText className="h-3.5 w-3.5 text-slate-500" />
-                    <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-                      Notes
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setStep("details")}
-                    className="flex items-center gap-1 text-[11px] font-medium text-indigo-600 hover:text-indigo-700 transition-colors min-h-[32px]"
-                  >
-                    <Pencil className="h-3 w-3" />
-                    Edit
-                  </button>
-                </div>
-                <div className="px-4 py-3">
-                  {notes ? (
-                    <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap line-clamp-4">
-                      {notes}
-                    </p>
-                  ) : (
-                    <p className="text-sm text-slate-400 italic">
-                      No notes added.
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {/* Task info */}
-              <div className="rounded-xl bg-indigo-50/50 border border-indigo-100 px-4 py-3 flex items-start gap-3">
-                <Sparkles className="h-4 w-4 text-indigo-500 mt-0.5 shrink-0" />
-                <p className="text-xs text-indigo-700 leading-relaxed">
-                  Once submitted, your supervisor will review this completion.
-                  You&apos;ll be notified when it&apos;s approved.
-                </p>
-              </div>
-            </div>
+            <ReviewStep
+              preview={preview}
+              notes={notes}
+              onEditPhoto={() => setStep("upload")}
+              onEditNotes={() => setStep("details")}
+            />
           )}
         </div>
 
         {/* ── Footer ── */}
-        <div className="border-t border-slate-100 px-6 py-4 flex items-center gap-3 bg-slate-50/30">
-          {step === "upload" ? (
-            <Button
-              variant="outline"
-              onClick={() => {
-                resetState();
-                onOpenChange(false);
-              }}
-              disabled={submitting}
-              className="min-h-[44px] rounded-xl text-sm"
-            >
-              Cancel
-            </Button>
-          ) : (
-            <Button
-              variant="outline"
-              onClick={goBack}
-              disabled={submitting}
-              className="min-h-[44px] rounded-xl text-sm"
-            >
-              <ArrowLeft className="mr-1.5 h-4 w-4" />
-              Back
-            </Button>
-          )}
+        <div className="border-t border-slate-100 px-5 sm:px-6 py-4 bg-slate-50/40">
+          <div className="flex items-center gap-3">
+            {step === "upload" ? (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  resetState();
+                  onOpenChange(false);
+                }}
+                disabled={submitting}
+                className="min-h-[48px] rounded-xl text-sm font-semibold text-slate-600"
+              >
+                Cancel
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                onClick={goBack}
+                disabled={submitting}
+                className="min-h-[48px] rounded-xl text-sm font-semibold text-slate-700"
+              >
+                <ArrowLeft className="mr-1.5 h-4 w-4" />
+                Back
+              </Button>
+            )}
 
-          <div className="flex-1" />
+            <div className="flex-1" />
 
-          {step === "review" ? (
-            <Button
-              onClick={handleSubmit}
-              disabled={submitting || !file}
-              className="min-h-[44px] rounded-xl text-sm bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-md hover:shadow-lg disabled:shadow-none transition-all duration-200"
-            >
-              {submitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {uploading ? "Uploading…" : "Submitting…"}
-                </>
-              ) : (
-                <>
-                  <Upload className="mr-2 h-4 w-4" />
-                  Submit Completion
-                </>
-              )}
-            </Button>
-          ) : (
-            <Button
-              onClick={goNext}
-              disabled={step === "upload" && !file}
-              className="min-h-[44px] rounded-xl text-sm bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-md hover:shadow-lg disabled:shadow-none disabled:opacity-50 transition-all duration-200"
-            >
-              Next
-              <ArrowRight className="ml-1.5 h-4 w-4" />
-            </Button>
-          )}
+            {step === "review" ? (
+              <Button
+                onClick={handleSubmit}
+                disabled={submitting || !file}
+                className="min-h-[48px] flex-1 sm:flex-none rounded-xl px-6 text-sm font-bold bg-[#1E3A8A] hover:bg-[#1E3A8A]/90 text-white shadow-lg shadow-indigo-500/25 disabled:opacity-50 disabled:shadow-none transition active:scale-[0.98]"
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {uploading ? "Uploading…" : "Submitting…"}
+                  </>
+                ) : (
+                  <>
+                    <Upload className="mr-2 h-4 w-4" />
+                    Submit Now
+                  </>
+                )}
+              </Button>
+            ) : (
+              <Button
+                onClick={goNext}
+                disabled={step === "upload" && !file}
+                className="min-h-[48px] flex-1 sm:flex-none rounded-xl px-6 text-sm font-bold bg-[#1E3A8A] hover:bg-[#1E3A8A]/90 text-white shadow-lg shadow-indigo-500/25 disabled:opacity-50 disabled:shadow-none transition active:scale-[0.98]"
+              >
+                Next
+                <ArrowRight className="ml-1.5 h-4 w-4" />
+              </Button>
+            )}
+          </div>
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/* ══════════════════════════════════════════════════
+   STEPPER — encouraging progress indicator
+   ══════════════════════════════════════════════════ */
+
+function Stepper({
+  step,
+  stepIndex,
+  hasFile,
+  setStep,
+}: {
+  step: Step;
+  stepIndex: number;
+  hasFile: boolean;
+  setStep: (s: Step) => void;
+}) {
+  return (
+    <div className="px-5 sm:px-6 pb-4">
+      <div className="flex items-center">
+        {STEPS.map((s, i) => {
+          const isCompleted =
+            (s.key === "upload" && hasFile && stepIndex > 0) ||
+            (s.key === "details" && stepIndex > 1);
+          const isActive = step === s.key;
+          const Icon = s.icon;
+
+          return (
+            <div key={s.key} className="flex items-center flex-1 last:flex-none">
+              <button
+                type="button"
+                onClick={() => {
+                  if (i < stepIndex) setStep(s.key);
+                }}
+                disabled={i > stepIndex}
+                className="flex flex-col items-center gap-1.5 disabled:cursor-default"
+              >
+                {isCompleted ? (
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-500 text-white shadow-sm transition">
+                    <CheckCircle2 className="h-4 w-4" />
+                  </span>
+                ) : isActive ? (
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#1E3A8A] text-white shadow-md ring-4 ring-indigo-100 transition">
+                    <Icon className="h-4 w-4" />
+                  </span>
+                ) : (
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-400 text-xs font-bold">
+                    {i + 1}
+                  </span>
+                )}
+                <span
+                  className={`text-[11px] font-semibold tracking-wide ${
+                    isActive
+                      ? "text-[#1E3A8A]"
+                      : isCompleted
+                        ? "text-emerald-600"
+                        : "text-slate-400"
+                  }`}
+                >
+                  {s.label}
+                </span>
+              </button>
+              {i < STEPS.length - 1 && (
+                <div className="flex-1 mx-2 sm:mx-3 mt-[-18px]">
+                  <div className="h-1 rounded-full bg-slate-100 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-[#1E3A8A] to-emerald-500 transition-all duration-500"
+                      style={{ width: i < stepIndex ? "100%" : "0%" }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════
+   STEP 1 — Photo upload
+   ══════════════════════════════════════════════════ */
+
+function UploadStep({
+  preview,
+  file,
+  dragOver,
+  uploading,
+  uploadProgress,
+  fileInputRef,
+  onClear,
+  onDrop,
+  onDragOver,
+  onDragLeave,
+  onInputChange,
+}: {
+  preview: string | null;
+  file: File | null;
+  dragOver: boolean;
+  uploading: boolean;
+  uploadProgress: number;
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
+  onClear: () => void;
+  onDrop: (e: React.DragEvent) => void;
+  onDragOver: (e: React.DragEvent) => void;
+  onDragLeave: () => void;
+  onInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-base font-extrabold text-slate-900 mb-1">
+          Show us what you completed 📸
+        </h3>
+        <p className="text-sm text-slate-500 leading-relaxed">
+          Take a photo or upload an image of the completed work. This is
+          required for supervisor review.
+        </p>
+      </div>
+
+      {preview ? (
+        <PhotoPreview
+          preview={preview}
+          fileName={file?.name}
+          uploading={uploading}
+          uploadProgress={uploadProgress}
+          onClear={onClear}
+        />
+      ) : (
+        <PhotoUploadZone
+          dragOver={dragOver}
+          onClick={() => fileInputRef.current?.click()}
+          onDrop={onDrop}
+          onDragOver={onDragOver}
+          onDragLeave={onDragLeave}
+        />
+      )}
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={onInputChange}
+        className="hidden"
+      />
+
+      {/* Helper hints */}
+      <ul className="space-y-1.5 text-xs text-slate-500">
+        <li className="flex items-center gap-2">
+          <span className="h-1 w-1 rounded-full bg-emerald-500" />
+          Make sure the photo clearly shows the completed work
+        </li>
+        <li className="flex items-center gap-2">
+          <span className="h-1 w-1 rounded-full bg-emerald-500" />
+          Good lighting helps your supervisor approve faster
+        </li>
+      </ul>
+    </div>
+  );
+}
+
+/* ─── Reusable: PhotoUploadZone ─── */
+
+function PhotoUploadZone({
+  dragOver,
+  onClick,
+  onDrop,
+  onDragOver,
+  onDragLeave,
+}: {
+  dragOver: boolean;
+  onClick: () => void;
+  onDrop: (e: React.DragEvent) => void;
+  onDragOver: (e: React.DragEvent) => void;
+  onDragLeave: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      onDrop={onDrop}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      className={`group flex w-full cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed py-14 sm:py-16 transition-all active:scale-[0.99] ${
+        dragOver
+          ? "border-[#1E3A8A] bg-indigo-50 scale-[1.01]"
+          : "border-slate-300 bg-slate-50/60 hover:border-[#1E3A8A] hover:bg-indigo-50/40"
+      }`}
+    >
+      <div
+        className={`mb-4 flex h-20 w-20 items-center justify-center rounded-2xl shadow-md transition-transform group-hover:scale-105 ${
+          dragOver
+            ? "bg-[#1E3A8A] text-white"
+            : "bg-gradient-to-br from-[#1E3A8A] to-indigo-600 text-white"
+        }`}
+      >
+        <Camera className="h-9 w-9" strokeWidth={2} />
+      </div>
+      <p className="text-base font-bold text-slate-900">Tap to take photo</p>
+      <p className="mt-1 text-xs text-slate-500 flex items-center gap-1.5">
+        <ImagePlus className="h-3.5 w-3.5" />
+        or drag &amp; drop · PNG, JPG up to 10MB
+      </p>
+    </button>
+  );
+}
+
+/* ─── Photo preview with progress ─── */
+
+function PhotoPreview({
+  preview,
+  fileName,
+  uploading,
+  uploadProgress,
+  onClear,
+}: {
+  preview: string;
+  fileName?: string;
+  uploading: boolean;
+  uploadProgress: number;
+  onClear: () => void;
+}) {
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-slate-200 shadow-sm group">
+      <img
+        src={preview}
+        alt="Evidence preview"
+        className="w-full h-72 object-cover"
+      />
+      <button
+        type="button"
+        onClick={onClear}
+        className="absolute top-3 right-3 inline-flex items-center gap-1.5 rounded-full bg-black/60 backdrop-blur px-3 py-2 text-xs font-semibold text-white hover:bg-red-600 transition min-h-[36px]"
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+        Remove
+      </button>
+      {uploading ? (
+        <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-4 py-4">
+          <div className="flex items-center gap-3">
+            <div className="h-1.5 flex-1 rounded-full bg-white/20">
+              <div
+                className="h-1.5 rounded-full bg-emerald-400 transition-all"
+                style={{ width: `${uploadProgress}%` }}
+              />
+            </div>
+            <span className="text-xs text-white font-bold tabular-nums">
+              {uploadProgress}%
+            </span>
+          </div>
+          <p className="text-[11px] text-white/80 mt-1.5">{fileName}</p>
+        </div>
+      ) : (
+        <div className="absolute bottom-3 left-3">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500 px-3 py-1.5 text-[11px] font-bold text-white shadow-lg">
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            Photo ready
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════
+   STEP 2 — Details / notes
+   ══════════════════════════════════════════════════ */
+
+function DetailsStep({
+  notes,
+  onNotesChange,
+  preview,
+  fileName,
+}: {
+  notes: string;
+  onNotesChange: (v: string) => void;
+  preview: string | null;
+  fileName?: string;
+}) {
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-base font-extrabold text-slate-900 mb-1">
+          Add a quick note
+        </h3>
+        <p className="text-sm text-slate-500 leading-relaxed">
+          Tell your supervisor what you did or any issues you ran into.
+          (Optional — but helpful!)
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <Label
+          htmlFor="notes"
+          className="text-[11px] font-bold text-slate-500 uppercase tracking-wider"
+        >
+          Notes
+        </Label>
+        <div className="relative">
+          <Textarea
+            id="notes"
+            placeholder="e.g. Cleaned all glass panels, replaced 3 bin liners…"
+            value={notes}
+            onChange={(e) => onNotesChange(e.target.value.slice(0, 500))}
+            rows={6}
+            className="resize-none rounded-xl border-slate-200 focus:border-[#1E3A8A] focus:ring-2 focus:ring-indigo-100 text-sm leading-relaxed"
+          />
+          <span
+            className={`absolute bottom-3 right-3 text-[10px] font-semibold tabular-nums ${
+              notes.length > 450 ? "text-amber-500" : "text-slate-300"
+            }`}
+          >
+            {notes.length}/500
+          </span>
+        </div>
+      </div>
+
+      {preview && (
+        <div className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/60 p-3">
+          <img
+            src={preview}
+            alt="Thumbnail"
+            className="h-12 w-12 rounded-lg object-cover ring-1 ring-slate-200"
+          />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-slate-700 truncate">
+              {fileName ?? "Evidence photo"}
+            </p>
+            <p className="text-[10px] text-slate-500">Photo attached ✓</p>
+          </div>
+          <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════
+   STEP 3 — Review summary
+   ══════════════════════════════════════════════════ */
+
+function ReviewStep({
+  preview,
+  notes,
+  onEditPhoto,
+  onEditNotes,
+}: {
+  preview: string | null;
+  notes: string;
+  onEditPhoto: () => void;
+  onEditNotes: () => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-base font-extrabold text-slate-900 mb-1">
+          One last check
+        </h3>
+        <p className="text-sm text-slate-500 leading-relaxed">
+          Make sure everything looks good before submitting for review.
+        </p>
+      </div>
+
+      {/* Photo */}
+      <ReviewCard
+        label="Photo Evidence"
+        icon={<Camera className="h-3.5 w-3.5 text-slate-500" />}
+        onEdit={onEditPhoto}
+      >
+        {preview && (
+          <img src={preview} alt="Evidence" className="w-full h-48 object-cover" />
+        )}
+      </ReviewCard>
+
+      {/* Notes */}
+      <ReviewCard
+        label="Notes"
+        icon={<FileText className="h-3.5 w-3.5 text-slate-500" />}
+        onEdit={onEditNotes}
+      >
+        <div className="px-4 py-3">
+          {notes ? (
+            <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
+              {notes}
+            </p>
+          ) : (
+            <p className="text-sm text-slate-400 italic">No notes added.</p>
+          )}
+        </div>
+      </ReviewCard>
+
+      {/* Encouragement */}
+      <div className="flex items-start gap-3 rounded-xl border border-indigo-100 bg-indigo-50/60 px-4 py-3">
+        <Sparkles className="h-4 w-4 text-[#1E3A8A] mt-0.5 shrink-0" />
+        <p className="text-xs text-indigo-900 leading-relaxed">
+          Once submitted, your supervisor will review and approve. You&apos;re
+          almost done!
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function ReviewCard({
+  label,
+  icon,
+  onEdit,
+  children,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  onEdit: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200 overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 bg-slate-50/70">
+        <div className="flex items-center gap-2">
+          {icon}
+          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+            {label}
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={onEdit}
+          className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold text-[#1E3A8A] hover:bg-indigo-100 transition min-h-[32px]"
+        >
+          <Pencil className="h-3 w-3" />
+          Edit
+        </button>
+      </div>
+      {children}
+    </div>
   );
 }

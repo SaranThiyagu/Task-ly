@@ -12,7 +12,10 @@ import {
 } from "lucide-react";
 import { ReassignModal } from "@/components/supervisor/ReassignModal";
 import { EscalateModal } from "@/components/supervisor/EscalateModal";
-import { reassignTask, escalateTask } from "@/app/(supervisor)/supervisor/reviews/[id]/actions";
+import {
+  reassignTask,
+  escalateTask,
+} from "@/app/(supervisor)/supervisor/reviews/[id]/actions";
 import { toast } from "sonner";
 import type { Profile } from "@/lib/types";
 
@@ -24,7 +27,9 @@ import { ActivityFeed } from "@/components/supervisor/dashboard/ActivityFeed";
 import { AIInsights } from "@/components/supervisor/dashboard/AIInsights";
 import { TopBar } from "@/components/supervisor/dashboard/TopBar";
 
-// --- Types for server-fetched data ---
+/* ───────────────────────────────────────────────
+   Server-fetched data types
+   ─────────────────────────────────────────────── */
 
 interface PendingReviewTask {
   id: string;
@@ -32,7 +37,9 @@ interface PendingReviewTask {
   site_location: string | null;
   priority: string;
   completed_at: string | null;
-  assigned_to_profile: Pick<Profile, "full_name" | "avatar_url"> | Pick<Profile, "full_name" | "avatar_url">[];
+  assigned_to_profile:
+    | Pick<Profile, "full_name" | "avatar_url">
+    | Pick<Profile, "full_name" | "avatar_url">[];
 }
 
 interface OverdueTask {
@@ -40,7 +47,9 @@ interface OverdueTask {
   title: string;
   due_date: string;
   status: string;
-  assigned_to_profile: Pick<Profile, "full_name" | "avatar_url"> | Pick<Profile, "full_name" | "avatar_url">[];
+  assigned_to_profile:
+    | Pick<Profile, "full_name" | "avatar_url">
+    | Pick<Profile, "full_name" | "avatar_url">[];
 }
 
 interface StaffOption {
@@ -52,15 +61,21 @@ interface RecentCompletion {
   id: string;
   title: string;
   completed_at: string | null;
-  assigned_to_profile: Pick<Profile, "full_name" | "avatar_url"> | Pick<Profile, "full_name" | "avatar_url">[];
+  assigned_to_profile:
+    | Pick<Profile, "full_name" | "avatar_url">
+    | Pick<Profile, "full_name" | "avatar_url">[];
 }
 
 interface RecentSubmission {
   id: string;
   submitted_at: string;
   task_id: string;
-  task: { id: string; title: string; status: string } | { id: string; title: string; status: string }[];
-  submitter: Pick<Profile, "full_name" | "avatar_url"> | Pick<Profile, "full_name" | "avatar_url">[];
+  task:
+    | { id: string; title: string; status: string }
+    | { id: string; title: string; status: string }[];
+  submitter:
+    | Pick<Profile, "full_name" | "avatar_url">
+    | Pick<Profile, "full_name" | "avatar_url">[];
 }
 
 interface RecentEscalation {
@@ -99,16 +114,18 @@ export function SupervisorDashboardClient({
   managerId,
 }: SupervisorDashboardClientProps) {
   const router = useRouter();
-  const [pendingReviewTasks, setPendingReviewTasks] = useState(initialPendingReviews);
+  const [pendingReviewTasks, setPendingReviewTasks] = useState(
+    initialPendingReviews,
+  );
   const [overdueTasks, setOverdueTasks] = useState(initialOverdue);
 
-  // Reassign modal state
+  /* ── Reassign modal state ── */
   const [reassignOpen, setReassignOpen] = useState(false);
   const [reassignTaskId, setReassignTaskId] = useState<string | null>(null);
   const [reassignTaskTitle, setReassignTaskTitle] = useState("");
   const [reassignCurrentAssignee, setReassignCurrentAssignee] = useState("");
 
-  // Escalate modal state
+  /* ── Escalate modal state ── */
   const [escalateOpen, setEscalateOpen] = useState(false);
   const [escalateTaskId, setEscalateTaskId] = useState<string | null>(null);
 
@@ -154,39 +171,32 @@ export function SupervisorDashboardClient({
     router.refresh();
   }
 
-  // Real-time subscriptions
+  /* ── Real-time subscriptions ── */
   useEffect(() => {
     const supabase = createClient();
-
     const evidenceChannel = supabase
       .channel("supervisor-evidence")
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "task_evidence" },
-        () => {
-          router.refresh();
-        }
+        () => router.refresh(),
       )
       .subscribe();
-
     const tasksChannel = supabase
       .channel("supervisor-tasks")
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "tasks" },
-        () => {
-          router.refresh();
-        }
+        () => router.refresh(),
       )
       .subscribe();
-
     return () => {
       supabase.removeChannel(evidenceChannel);
       supabase.removeChannel(tasksChannel);
     };
   }, [router]);
 
-  // Sync props when server data refreshes
+  /* ── Sync from server refresh ── */
   useEffect(() => {
     setPendingReviewTasks(initialPendingReviews);
   }, [initialPendingReviews]);
@@ -195,7 +205,7 @@ export function SupervisorDashboardClient({
     setOverdueTasks(initialOverdue);
   }, [initialOverdue]);
 
-  // Build combined activity feed sorted by time
+  /* ── Activity feed (combined, sorted, capped) ── */
   const activityFeed = [
     ...recentCompletions.map((c) => {
       const prof = Array.isArray(c.assigned_to_profile)
@@ -211,7 +221,9 @@ export function SupervisorDashboardClient({
     }),
     ...recentSubmissions.map((s) => {
       const task = Array.isArray(s.task) ? s.task[0] : s.task;
-      const submitter = Array.isArray(s.submitter) ? s.submitter[0] : s.submitter;
+      const submitter = Array.isArray(s.submitter)
+        ? s.submitter[0]
+        : s.submitter;
       return {
         id: `submission-${s.id}`,
         type: "submission" as const,
@@ -222,7 +234,9 @@ export function SupervisorDashboardClient({
     }),
     ...recentEscalations.map((e) => {
       const task = Array.isArray(e.task) ? e.task[0] : e.task;
-      const from = Array.isArray(e.from_profile) ? e.from_profile[0] : e.from_profile;
+      const from = Array.isArray(e.from_profile)
+        ? e.from_profile[0]
+        : e.from_profile;
       return {
         id: `escalation-${e.id}`,
         type: "escalation" as const,
@@ -235,97 +249,118 @@ export function SupervisorDashboardClient({
     .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
     .slice(0, 10);
 
+  /* ── KPI stat cards ── */
   const statCards = [
     {
       label: "Pending Reviews",
       value: pendingReviewTasks.length,
       icon: ClipboardCheck,
-      iconColor: "text-amber-600",
-      iconBg: "bg-amber-50",
-    },
-    {
-      label: "Completed Today",
-      value: completedTodayCount,
-      icon: CheckCircle2,
-      iconColor: "text-green-600",
-      iconBg: "bg-green-50",
+      tone: "amber" as const,
+      subLabel: "Awaiting your approval",
+      cta:
+        pendingReviewTasks.length > 0
+          ? { label: "Review Now", href: "/supervisor/reviews" }
+          : undefined,
     },
     {
       label: "Overdue Tasks",
       value: overdueTasks.length,
       icon: AlertTriangle,
-      iconColor: "text-red-600",
-      iconBg: "bg-red-50",
+      tone: "red" as const,
       critical: true,
+      subLabel: "Past due date",
+      cta:
+        overdueTasks.length > 0
+          ? { label: "Resolve Now", href: "/supervisor/tasks?filter=overdue" }
+          : undefined,
+    },
+    {
+      label: "Completed Today",
+      value: completedTodayCount,
+      icon: CheckCircle2,
+      tone: "green" as const,
+      subLabel: "Great progress",
     },
     {
       label: "Active Tasks",
       value: activeTasksCount,
       icon: Activity,
-      iconColor: "text-indigo-600",
-      iconBg: "bg-indigo-50",
+      tone: "blue" as const,
+      subLabel: "In progress",
     },
   ];
 
   return (
-    <div className="space-y-6">
-      {/* Top Bar - Desktop */}
+    <div className="space-y-6 pb-10">
+      {/* ─── Header ─── */}
       <TopBar name={profile.full_name} />
 
       {/* Mobile header */}
       <div className="lg:hidden">
-        <h1 className="text-xl font-bold tracking-tight text-gray-900">
+        <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">
           Supervisor Dashboard
         </h1>
-        <p className="mt-0.5 text-[13px] text-gray-500">
-          Welcome back, {profile.full_name.split(" ")[0]} &middot;{" "}
+        <p className="mt-1 text-[13px] text-slate-500">
+          Welcome back, {profile.full_name.split(" ")[0]} ·{" "}
           {format(new Date(), "MMM d, yyyy")}
         </p>
       </div>
 
-      {/* KPI Stats Grid */}
+      {/* ═══════════════════════════════════════════
+         1. KPI STATS — Top summary metrics
+         Pending Reviews + Overdue carry inline CTAs.
+         ═══════════════════════════════════════════ */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
         {statCards.map((stat) => (
           <StatCard key={stat.label} {...stat} />
         ))}
       </div>
 
-      {/* Priority Strip — Attention Required */}
-      <PriorityStrip tasks={overdueTasks} />
+      {/* ═══════════════════════════════════════════
+         2. CRITICAL · ATTENTION REQUIRED
+         The most prominent section when overdue exists.
+         Strong red treatment, top of fold below stats.
+         ═══════════════════════════════════════════ */}
+      <PriorityStrip tasks={overdueTasks} onEscalate={openEscalate} />
 
-      {/* Main Content Grid: 70/30 split */}
+      {/* ═══════════════════════════════════════════
+         3. AI INSIGHTS — Elevated, full-width row.
+         Actionable cards (3 max).
+         ═══════════════════════════════════════════ */}
+      <AIInsights
+        overdueCount={overdueTasks.length}
+        completedToday={completedTodayCount}
+        pendingReviews={pendingReviewTasks.length}
+        activeTasks={activeTasksCount}
+      />
+
+      {/* ═══════════════════════════════════════════
+         4. WORKFLOWS + ACTIVITY
+         Left (70%): Pending Reviews + Overdue Tasks
+         Right (30%): Activity Feed
+         ═══════════════════════════════════════════ */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-10">
-        {/* LEFT: Task Workflows (70%) */}
+        {/* LEFT */}
         <div className="space-y-6 xl:col-span-7">
-          {/* Pending Reviews Section */}
+          {/* Pending Reviews */}
           <section>
-            <div className="mb-3 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <h2 className="text-[15px] font-semibold text-gray-900">
-                  Pending Reviews
-                </h2>
-                {pendingReviewTasks.length > 0 && (
-                  <span className="inline-flex items-center rounded-lg bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
-                    {pendingReviewTasks.length} awaiting
-                  </span>
-                )}
-              </div>
-            </div>
+            <SectionHeader
+              title="Pending Reviews"
+              count={pendingReviewTasks.length}
+              countLabel="awaiting"
+              tone="amber"
+            />
             <TaskList tasks={pendingReviewTasks} />
           </section>
 
-          {/* Overdue Tasks Section */}
+          {/* Overdue Tasks */}
           <section>
-            <div className="mb-3 flex items-center gap-2">
-              <h2 className="text-[15px] font-semibold text-gray-900">
-                Overdue Tasks
-              </h2>
-              {overdueTasks.length > 0 && (
-                <span className="inline-flex items-center rounded-lg bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700 stat-card-critical">
-                  {overdueTasks.length} critical
-                </span>
-              )}
-            </div>
+            <SectionHeader
+              title="Overdue Tasks"
+              count={overdueTasks.length}
+              countLabel="critical"
+              tone="red"
+            />
             <OverdueList
               tasks={overdueTasks}
               onReassign={openReassign}
@@ -334,26 +369,14 @@ export function SupervisorDashboardClient({
           </section>
         </div>
 
-        {/* RIGHT: Activity Feed + AI Insights (30%) */}
-        <div className="space-y-4 xl:col-span-3">
-          {/* AI Insights */}
-          <AIInsights
-            overdueCount={overdueTasks.length}
-            completedToday={completedTodayCount}
-            pendingReviews={pendingReviewTasks.length}
-          />
-
-          {/* Activity Feed */}
-          <div>
-            <h2 className="mb-3 text-[15px] font-semibold text-gray-900">
-              Activity
-            </h2>
-            <ActivityFeed items={activityFeed} />
-          </div>
-        </div>
+        {/* RIGHT */}
+        <aside className="xl:col-span-3">
+          <SectionHeader title="Activity" />
+          <ActivityFeed items={activityFeed} />
+        </aside>
       </div>
 
-      {/* Reassign Modal */}
+      {/* ─── Modals ─── */}
       <ReassignModal
         open={reassignOpen}
         onOpenChange={setReassignOpen}
@@ -362,13 +385,46 @@ export function SupervisorDashboardClient({
         currentAssignee={reassignCurrentAssignee}
         taskTitle={reassignTaskTitle}
       />
-
-      {/* Escalate Modal */}
       <EscalateModal
         open={escalateOpen}
         onOpenChange={setEscalateOpen}
         onConfirm={handleEscalate}
       />
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════
+   Inline section header w/ count chip
+   ═══════════════════════════════════════════ */
+
+function SectionHeader({
+  title,
+  count,
+  countLabel,
+  tone,
+}: {
+  title: string;
+  count?: number;
+  countLabel?: string;
+  tone?: "amber" | "red";
+}) {
+  const toneCls =
+    tone === "red"
+      ? "bg-red-100 text-red-700 ring-red-200"
+      : tone === "amber"
+        ? "bg-amber-100 text-amber-800 ring-amber-200"
+        : "bg-slate-100 text-slate-600 ring-slate-200";
+  return (
+    <div className="mb-3 flex items-center gap-2">
+      <h2 className="text-[15px] font-bold text-slate-900">{title}</h2>
+      {typeof count === "number" && count > 0 && (
+        <span
+          className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold ring-1 ${toneCls}`}
+        >
+          {count} {countLabel}
+        </span>
+      )}
     </div>
   );
 }

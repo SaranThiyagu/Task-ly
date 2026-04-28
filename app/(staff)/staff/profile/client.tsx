@@ -12,13 +12,12 @@ import {
   ClipboardList,
   CheckCircle2,
   LogOut,
-  TrendingUp,
-  ChevronRight,
   Camera,
   Loader2,
-  Zap,
   Award,
-  Target,
+  Hourglass,
+  Sparkles,
+  TrendingUp,
 } from "lucide-react";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { updateAvatarUrl } from "./actions";
@@ -29,18 +28,27 @@ interface ProfileClientProps {
   stats: { total: number; completed: number };
 }
 
+/* ───── Design tokens ─────
+   Primary  : #1E3A8A (deep blue)
+   Success  : #22C55E (green)
+   Warning  : #F59E0B (orange)
+   Danger   : #EF4444 (red)
+*/
+
 export function ProfileClient({ profile, stats }: ProfileClientProps) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [currentAvatarUrl, setCurrentAvatarUrl] = useState(profile.avatar_url);
 
+  /* ── Logout ── */
   async function handleLogout() {
     const supabase = createClient();
     await supabase.auth.signOut();
     router.push("/login");
   }
 
+  /* ── Avatar upload ── */
   async function resizeImage(file: File, maxSize = 256): Promise<Blob> {
     return new Promise((resolve, reject) => {
       const img = new Image();
@@ -55,7 +63,7 @@ export function ProfileClient({ profile, stats }: ProfileClientProps) {
         canvas.toBlob(
           (blob) => (blob ? resolve(blob) : reject(new Error("Resize failed"))),
           "image/webp",
-          0.85
+          0.85,
         );
       };
       img.onerror = () => reject(new Error("Failed to load image"));
@@ -66,19 +74,16 @@ export function ProfileClient({ profile, stats }: ProfileClientProps) {
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-
     if (!file.type.startsWith("image/")) {
       toast.error("Please select an image file");
       return;
     }
-
     if (file.size > 5 * 1024 * 1024) {
       toast.error("Image must be under 5MB");
       return;
     }
 
     setUploading(true);
-
     try {
       const resized = await resizeImage(file);
       const supabase = createClient();
@@ -103,7 +108,6 @@ export function ProfileClient({ profile, stats }: ProfileClientProps) {
       } = supabase.storage.from("avatars").getPublicUrl(filePath);
 
       const avatarUrl = `${publicUrl}?t=${Date.now()}`;
-
       const result = await updateAvatarUrl(avatarUrl);
 
       if (result.error) {
@@ -121,249 +125,457 @@ export function ProfileClient({ profile, stats }: ProfileClientProps) {
     }
   }
 
+  /* ── Derived values ── */
   const completionRate =
     stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0;
   const pending = stats.total - stats.completed;
 
-  // Performance tier
-  const tier =
-    completionRate >= 90
-      ? { label: "Outstanding", color: "text-emerald-600", bg: "bg-emerald-50", ring: "ring-emerald-200" }
-      : completionRate >= 70
-        ? { label: "Great", color: "text-blue-600", bg: "bg-blue-50", ring: "ring-blue-200" }
-        : completionRate >= 50
-          ? { label: "Good", color: "text-amber-600", bg: "bg-amber-50", ring: "ring-amber-200" }
-          : { label: "Needs Focus", color: "text-slate-600", bg: "bg-slate-50", ring: "ring-slate-200" };
+  const tier = getPerformanceTier(completionRate);
+  const firstName = profile.full_name.split(" ")[0];
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      {/* ── Hero Card ── */}
-      <div className="relative overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm">
-        {/* Gradient banner */}
-        <div className="h-28 bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 relative">
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(99,102,241,0.15),transparent_60%)]" />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,_rgba(139,92,246,0.1),transparent_60%)]" />
-        </div>
+    <div className="mx-auto max-w-2xl space-y-5 sm:space-y-6 pb-24 lg:pb-6">
+      {/* ════════ HEADER ════════ */}
+      <header>
+        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
+          My Profile
+        </h1>
+        <p className="mt-1 text-sm text-slate-500">
+          Your performance and account information
+        </p>
+      </header>
 
-        {/* Avatar + info */}
-        <div className="px-6 pb-6">
-          <div className="flex flex-col sm:flex-row sm:items-end gap-4 -mt-10">
-            {/* Avatar */}
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              className="group relative rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 disabled:opacity-70 shrink-0 self-start"
-            >
-              <UserAvatar
-                name={profile.full_name}
-                avatarUrl={currentAvatarUrl}
-                size="xl"
-                className="ring-4 ring-white shadow-lg"
-              />
-              <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/0 group-hover:bg-black/40 transition-all duration-200">
-                {uploading ? (
-                  <Loader2 className="h-6 w-6 text-white animate-spin" />
-                ) : (
-                  <Camera className="h-5 w-5 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
-                )}
-              </div>
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleFileChange}
-              className="hidden"
+      {/* ════════ HERO CARD ════════ */}
+      <ProfileHero
+        profile={profile}
+        avatarUrl={currentAvatarUrl}
+        uploading={uploading}
+        tier={tier}
+        firstName={firstName}
+        onAvatarClick={() => fileInputRef.current?.click()}
+      />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleFileChange}
+        className="hidden"
+      />
+
+      {/* ════════ STATS CARDS ════════ */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <StatCard
+          tone="blue"
+          icon={<ClipboardList className="h-6 w-6" />}
+          label="Assigned"
+          subLabel="Total tasks"
+          count={stats.total}
+        />
+        <StatCard
+          tone="green"
+          icon={<CheckCircle2 className="h-6 w-6" />}
+          label="Completed"
+          subLabel="Great work!"
+          count={stats.completed}
+        />
+        <StatCard
+          tone="orange"
+          icon={<Hourglass className="h-6 w-6" />}
+          label="Pending"
+          subLabel="In progress"
+          count={pending}
+          pulse={pending > 0}
+        />
+      </div>
+
+      {/* ════════ PERFORMANCE CARD ════════ */}
+      <PerformanceCard
+        completionRate={completionRate}
+        completed={stats.completed}
+        pending={pending}
+        tier={tier}
+      />
+
+      {/* ════════ ACCOUNT DETAILS ════════ */}
+      <AccountDetails profile={profile} />
+
+      {/* ════════ SIGN OUT ════════ */}
+      <button
+        onClick={handleLogout}
+        className="group flex w-full items-center justify-center gap-2 rounded-2xl border border-red-200 bg-white px-5 py-4 text-sm font-bold text-red-600 shadow-sm transition hover:bg-red-50 active:scale-[0.99] min-h-[56px]"
+      >
+        <LogOut className="h-4 w-4" />
+        Sign Out
+      </button>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════
+   PROFILE HERO — clean light card with avatar + tier
+   ══════════════════════════════════════════════════ */
+
+function ProfileHero({
+  profile,
+  avatarUrl,
+  uploading,
+  tier,
+  firstName,
+  onAvatarClick,
+}: {
+  profile: Profile;
+  avatarUrl: string | null;
+  uploading: boolean;
+  tier: ReturnType<typeof getPerformanceTier>;
+  firstName: string;
+  onAvatarClick: () => void;
+}) {
+  return (
+    <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+      {/* Soft brand banner */}
+      <div className="h-24 bg-gradient-to-br from-[#1E3A8A] via-indigo-600 to-blue-500 relative">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(255,255,255,0.25),transparent_60%)]" />
+        <div className="absolute -top-10 -right-10 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
+      </div>
+
+      <div className="px-5 sm:px-6 pb-6">
+        {/* Avatar — pulled up over the banner */}
+        <div className="flex justify-center sm:justify-start -mt-14 sm:-mt-16">
+          <button
+            type="button"
+            onClick={onAvatarClick}
+            disabled={uploading}
+            className="group relative shrink-0 rounded-full focus:outline-none focus-visible:ring-4 focus-visible:ring-indigo-200"
+          >
+            <UserAvatar
+              name={profile.full_name}
+              avatarUrl={avatarUrl}
+              size="xl"
+              className="h-24 w-24 sm:h-28 sm:w-28 text-3xl ring-4 ring-white shadow-lg"
             />
+            {/* Camera badge */}
+            <span className="absolute bottom-1 right-1 flex h-9 w-9 items-center justify-center rounded-full bg-[#1E3A8A] text-white shadow-md ring-2 ring-white transition group-hover:scale-110">
+              {uploading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Camera className="h-4 w-4" />
+              )}
+            </span>
+          </button>
+        </div>
 
-            {/* Name + meta */}
-            <div className="flex-1 min-w-0 pb-1">
-              <h1 className="text-xl font-semibold text-slate-900 truncate">
-                {profile.full_name}
-              </h1>
-              <div className="flex flex-wrap items-center gap-2 mt-1.5">
-                <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600 capitalize">
-                  <Shield className="h-3 w-3" />
-                  {profile.role}
-                </span>
-                <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${tier.bg} ${tier.color} ${tier.ring}`}>
-                  <Award className="h-3 w-3" />
-                  {tier.label}
-                </span>
-              </div>
-            </div>
-
-            {/* Edit photo hint */}
-            <p className="text-[11px] text-slate-400 hidden sm:block pb-1.5">
-              Click avatar to change
-            </p>
+        {/* Name + chips — sits cleanly below the avatar */}
+        <div className="mt-4 text-center sm:text-left">
+          <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900 truncate">
+            {profile.full_name}
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Welcome back, {firstName} 👋
+          </p>
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+            <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-slate-600">
+              <Shield className="h-3 w-3" />
+              {profile.role}
+            </span>
+            <span
+              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider ring-1 ${tier.chipCls}`}
+            >
+              <Award className="h-3 w-3" />
+              {tier.label}
+            </span>
           </div>
         </div>
+
+        {/* Hint */}
+        <p className="mt-4 text-center text-[11px] text-slate-400 sm:text-left">
+          Tap the camera icon to change your photo
+        </p>
       </div>
+    </div>
+  );
+}
 
-      {/* ── Stats Cards ── */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="rounded-2xl border border-slate-200/60 bg-white p-5 shadow-sm hover:shadow-md transition-shadow duration-200">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50">
-              <ClipboardList className="h-4 w-4 text-indigo-600" />
-            </div>
-            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-              Assigned
-            </span>
-          </div>
-          <p className="text-2xl font-bold text-slate-900 tabular-nums">{stats.total}</p>
-          <p className="text-[11px] text-slate-400 mt-0.5">Total tasks</p>
-        </div>
+/* ══════════════════════════════════════════════════
+   STAT CARD
+   ══════════════════════════════════════════════════ */
 
-        <div className="rounded-2xl border border-slate-200/60 bg-white p-5 shadow-sm hover:shadow-md transition-shadow duration-200">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50">
-              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-            </div>
-            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-              Done
-            </span>
-          </div>
-          <p className="text-2xl font-bold text-slate-900 tabular-nums">{stats.completed}</p>
-          <p className="text-[11px] text-slate-400 mt-0.5">Completed</p>
-        </div>
+function StatCard({
+  tone,
+  icon,
+  label,
+  subLabel,
+  count,
+  pulse,
+}: {
+  tone: "blue" | "green" | "orange";
+  icon: React.ReactNode;
+  label: string;
+  subLabel: string;
+  count: number;
+  pulse?: boolean;
+}) {
+  const tones = {
+    blue: {
+      iconBg: "bg-[#1E3A8A] text-white shadow-indigo-500/30",
+      ring: "ring-indigo-100",
+      labelColor: "text-[#1E3A8A]",
+    },
+    green: {
+      iconBg: "bg-emerald-500 text-white shadow-emerald-500/30",
+      ring: "ring-emerald-100",
+      labelColor: "text-emerald-700",
+    },
+    orange: {
+      iconBg: "bg-amber-500 text-white shadow-amber-500/30",
+      ring: "ring-amber-100",
+      labelColor: "text-amber-700",
+    },
+  }[tone];
 
-        <div className="rounded-2xl border border-slate-200/60 bg-white p-5 shadow-sm hover:shadow-md transition-shadow duration-200">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50">
-              <Target className="h-4 w-4 text-amber-600" />
-            </div>
-            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-              Pending
-            </span>
-          </div>
-          <p className="text-2xl font-bold text-slate-900 tabular-nums">{pending}</p>
-          <p className="text-[11px] text-slate-400 mt-0.5">In progress</p>
-        </div>
+  return (
+    <div
+      className={`rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md ring-1 ${tones.ring}`}
+    >
+      <div
+        className={`mb-3 flex h-12 w-12 items-center justify-center rounded-2xl shadow-md ${tones.iconBg} ${
+          pulse ? "animate-pulse" : ""
+        }`}
+      >
+        {icon}
       </div>
+      <p className="text-3xl font-extrabold tabular-nums tracking-tight text-slate-900">
+        {count}
+      </p>
+      <p className={`mt-1 text-xs font-bold uppercase tracking-wider ${tones.labelColor}`}>
+        {label}
+      </p>
+      <p className="mt-0.5 text-[11px] text-slate-400">{subLabel}</p>
+    </div>
+  );
+}
 
-      {/* ── Performance Card ── */}
-      <div className="rounded-2xl border border-slate-200/60 bg-white p-5 shadow-sm">
-        <div className="flex items-center justify-between mb-4">
+/* ══════════════════════════════════════════════════
+   PERFORMANCE CARD
+   ══════════════════════════════════════════════════ */
+
+function PerformanceCard({
+  completionRate,
+  completed,
+  pending,
+  tier,
+}: {
+  completionRate: number;
+  completed: number;
+  pending: number;
+  tier: ReturnType<typeof getPerformanceTier>;
+}) {
+  return (
+    <div
+      className={`relative overflow-hidden rounded-3xl border-2 ${tier.cardBorder} ${tier.cardBg} p-5 sm:p-6 shadow-sm`}
+    >
+      {/* Decorative blob */}
+      <div
+        className={`pointer-events-none absolute -top-12 -right-12 h-40 w-40 rounded-full ${tier.blob} blur-3xl`}
+      />
+
+      <div className="relative">
+        {/* Title row */}
+        <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50">
-              <TrendingUp className="h-4 w-4 text-violet-600" />
+            <div
+              className={`flex h-10 w-10 items-center justify-center rounded-xl ${tier.iconBg} text-white shadow-md`}
+            >
+              <TrendingUp className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-slate-900">Performance</p>
-              <p className="text-[11px] text-slate-400">Task completion rate</p>
+              <h3 className="text-base font-extrabold text-slate-900">
+                Performance
+              </h3>
+              <p className="text-[11px] text-slate-500">Task completion rate</p>
             </div>
           </div>
-          <div className="text-right">
-            <p className="text-2xl font-bold text-slate-900 tabular-nums">{completionRate}%</p>
+          <span
+            className={`inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider ${tier.chipSolid}`}
+          >
+            <Sparkles className="h-3 w-3" />
+            {tier.label}
+          </span>
+        </div>
+
+        {/* Big rate + encouragement */}
+        <div className="mt-5 flex items-end justify-between gap-3">
+          <div>
+            <p
+              className={`text-5xl sm:text-6xl font-extrabold tabular-nums leading-none ${tier.numberColor}`}
+            >
+              {completionRate}
+              <span className="text-3xl">%</span>
+            </p>
+            <p className="mt-2 text-sm font-semibold text-slate-700">
+              {tier.encouragement}
+            </p>
           </div>
         </div>
 
         {/* Progress bar */}
-        <div className="relative">
-          <div className="h-2.5 w-full rounded-full bg-slate-100 overflow-hidden">
+        <div className="mt-5">
+          <div className="h-3 w-full rounded-full bg-white/70 ring-1 ring-slate-200 overflow-hidden">
             <div
-              className={`h-full rounded-full transition-all duration-1000 ease-out ${
-                completionRate >= 80
-                  ? "bg-gradient-to-r from-emerald-500 to-emerald-400"
-                  : completionRate >= 50
-                    ? "bg-gradient-to-r from-amber-500 to-amber-400"
-                    : "bg-gradient-to-r from-red-500 to-red-400"
-              }`}
+              className={`h-full rounded-full ${tier.barBg} transition-all duration-1000 ease-out`}
               style={{ width: `${completionRate}%` }}
             />
           </div>
         </div>
 
-        {/* Mini breakdown */}
-        <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100">
+        {/* Breakdown */}
+        <div className="mt-4 flex items-center justify-between text-xs">
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-1.5">
-              <div className="h-2 w-2 rounded-full bg-emerald-500" />
-              <span className="text-[11px] text-slate-500">
-                {stats.completed} completed
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="h-2 w-2 rounded-full bg-slate-300" />
-              <span className="text-[11px] text-slate-500">
-                {pending} remaining
-              </span>
-            </div>
+            <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-700">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+              {completed} completed
+            </span>
+            <span className="inline-flex items-center gap-1.5 font-semibold text-slate-500">
+              <span className="h-2 w-2 rounded-full bg-slate-300" />
+              {pending} remaining
+            </span>
           </div>
-          <span className={`inline-flex items-center gap-1 text-[11px] font-medium ${tier.color}`}>
-            <Zap className="h-3 w-3" />
-            {tier.label}
+          <span className="text-[11px] font-medium text-slate-400">
+            this period
           </span>
         </div>
       </div>
-
-      {/* ── Account Details ── */}
-      <div className="rounded-2xl border border-slate-200/60 bg-white overflow-hidden shadow-sm">
-        <div className="px-5 py-3 border-b border-slate-100">
-          <h2 className="text-sm font-semibold text-slate-900">Account Details</h2>
-        </div>
-
-        <div className="divide-y divide-slate-100">
-          <div className="flex items-center gap-4 px-5 py-4 hover:bg-slate-50/50 transition-colors">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 shrink-0">
-              <Mail className="h-4 w-4 text-blue-600" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                Email
-              </p>
-              <p className="text-sm font-medium text-slate-900 truncate">
-                {profile.email}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4 px-5 py-4 hover:bg-slate-50/50 transition-colors">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-50 shrink-0">
-              <Shield className="h-4 w-4 text-violet-600" />
-            </div>
-            <div>
-              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                Role
-              </p>
-              <p className="text-sm font-medium text-slate-900 capitalize">
-                {profile.role}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4 px-5 py-4 hover:bg-slate-50/50 transition-colors">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50 shrink-0">
-              <CalendarDays className="h-4 w-4 text-amber-600" />
-            </div>
-            <div>
-              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                Member Since
-              </p>
-              <p className="text-sm font-medium text-slate-900">
-                {format(new Date(profile.created_at), "MMMM d, yyyy")}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Sign Out ── */}
-      <button
-        onClick={handleLogout}
-        className="group flex w-full items-center justify-between rounded-2xl border border-red-100 bg-white px-5 py-4 text-red-600 transition-all duration-200 hover:bg-red-50 hover:border-red-200 active:scale-[0.99] shadow-sm"
-      >
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-50 group-hover:bg-red-100 transition-colors">
-            <LogOut className="h-4 w-4 text-red-500" />
-          </div>
-          <span className="text-sm font-semibold">Sign Out</span>
-        </div>
-        <ChevronRight className="h-4 w-4 text-red-300 group-hover:translate-x-0.5 transition-transform duration-200" />
-      </button>
     </div>
   );
+}
+
+/* ══════════════════════════════════════════════════
+   ACCOUNT DETAILS
+   ══════════════════════════════════════════════════ */
+
+function AccountDetails({ profile }: { profile: Profile }) {
+  return (
+    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="border-b border-slate-100 px-5 py-4">
+        <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500">
+          Account Details
+        </h2>
+      </div>
+      <div className="divide-y divide-slate-100">
+        <DetailRow
+          icon={<Mail className="h-4 w-4 text-blue-600" />}
+          iconBg="bg-blue-50"
+          label="Email"
+          value={profile.email}
+        />
+        <DetailRow
+          icon={<Shield className="h-4 w-4 text-violet-600" />}
+          iconBg="bg-violet-50"
+          label="Role"
+          value={profile.role}
+          valueClass="capitalize"
+        />
+        <DetailRow
+          icon={<CalendarDays className="h-4 w-4 text-amber-600" />}
+          iconBg="bg-amber-50"
+          label="Member Since"
+          value={format(new Date(profile.created_at), "MMMM d, yyyy")}
+        />
+      </div>
+    </section>
+  );
+}
+
+function DetailRow({
+  icon,
+  iconBg,
+  label,
+  value,
+  valueClass,
+}: {
+  icon: React.ReactNode;
+  iconBg: string;
+  label: string;
+  value: string;
+  valueClass?: string;
+}) {
+  return (
+    <div className="flex items-center gap-4 px-5 py-4 transition hover:bg-slate-50/50">
+      <div
+        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${iconBg}`}
+      >
+        {icon}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+          {label}
+        </p>
+        <p
+          className={`mt-0.5 truncate text-sm font-semibold text-slate-900 ${valueClass ?? ""}`}
+        >
+          {value}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════
+   PERFORMANCE TIER HELPER
+   ══════════════════════════════════════════════════ */
+
+function getPerformanceTier(rate: number) {
+  if (rate >= 90) {
+    return {
+      label: "Outstanding",
+      encouragement: "You're crushing it — keep up the amazing work! 🏆",
+      chipCls: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+      chipSolid: "bg-emerald-500 text-white",
+      cardBg: "bg-gradient-to-br from-emerald-50 via-white to-teal-50",
+      cardBorder: "border-emerald-200",
+      iconBg: "bg-emerald-500",
+      blob: "bg-emerald-300/30",
+      numberColor: "text-emerald-600",
+      barBg: "bg-gradient-to-r from-emerald-500 to-emerald-400",
+    };
+  }
+  if (rate >= 70) {
+    return {
+      label: "Great",
+      encouragement: "Great work — you're nearly there! 💪",
+      chipCls: "bg-blue-50 text-blue-700 ring-blue-200",
+      chipSolid: "bg-[#1E3A8A] text-white",
+      cardBg: "bg-gradient-to-br from-indigo-50 via-white to-blue-50",
+      cardBorder: "border-indigo-200",
+      iconBg: "bg-[#1E3A8A]",
+      blob: "bg-indigo-300/30",
+      numberColor: "text-[#1E3A8A]",
+      barBg: "bg-gradient-to-r from-[#1E3A8A] to-indigo-500",
+    };
+  }
+  if (rate >= 50) {
+    return {
+      label: "Good",
+      encouragement: "Good progress — keep pushing! 🚀",
+      chipCls: "bg-amber-50 text-amber-800 ring-amber-200",
+      chipSolid: "bg-amber-500 text-white",
+      cardBg: "bg-gradient-to-br from-amber-50 via-white to-orange-50",
+      cardBorder: "border-amber-200",
+      iconBg: "bg-amber-500",
+      blob: "bg-amber-300/30",
+      numberColor: "text-amber-600",
+      barBg: "bg-gradient-to-r from-amber-500 to-amber-400",
+    };
+  }
+  return {
+    label: "Getting Started",
+    encouragement: "Every task counts — you've got this! 💙",
+    chipCls: "bg-slate-100 text-slate-700 ring-slate-200",
+    chipSolid: "bg-slate-700 text-white",
+    cardBg: "bg-gradient-to-br from-slate-50 via-white to-slate-100",
+    cardBorder: "border-slate-200",
+    iconBg: "bg-slate-600",
+    blob: "bg-slate-300/20",
+    numberColor: "text-slate-700",
+    barBg: "bg-gradient-to-r from-slate-500 to-slate-400",
+  };
 }
