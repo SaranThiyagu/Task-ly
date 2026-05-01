@@ -29,6 +29,7 @@ import {
   ImagePlus,
   PartyPopper,
 } from "lucide-react";
+import { useDictionary } from "@/lib/i18n/dictionary-provider";
 
 /* ───── Design tokens ─────
    Primary  : #1E3A8A (deep blue)
@@ -57,6 +58,8 @@ export function CompleteTaskModal({
   taskTitle,
 }: CompleteTaskModalProps) {
   const router = useRouter();
+  const dict = useDictionary();
+  const m = dict.completeModal;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [step, setStep] = useState<Step>("upload");
@@ -176,13 +179,13 @@ export function CompleteTaskModal({
 
       setSuccess(true);
       await new Promise((r) => setTimeout(r, 1400));
-      toast.success("Great job! Task submitted for review 🎉");
+      toast.success(m.toast_success);
       resetState();
       onOpenChange(false);
       router.push("/staff/dashboard");
       router.refresh();
     } catch {
-      toast.error("Something went wrong. Please try again.");
+      toast.error(m.toast_error);
       setSubmitting(false);
       setUploading(false);
     }
@@ -209,8 +212,7 @@ export function CompleteTaskModal({
               Nice work! <PartyPopper className="h-6 w-6 text-amber-500" />
             </h3>
             <p className="text-sm text-slate-500 max-w-xs leading-relaxed">
-              Your submission has been sent for supervisor review. You&apos;ll be
-              notified when it&apos;s approved.
+              {m.success_body}
             </p>
           </div>
         </DialogContent>
@@ -228,7 +230,7 @@ export function CompleteTaskModal({
         <div className="px-5 sm:px-6 pt-5 pb-3">
           <DialogHeader>
             <DialogTitle className="text-lg sm:text-xl font-extrabold text-slate-900">
-              Submit Completion
+              {m.title}
             </DialogTitle>
             <DialogDescription className="text-xs text-slate-500 mt-1 line-clamp-1">
               {taskTitle}
@@ -294,7 +296,7 @@ export function CompleteTaskModal({
                 disabled={submitting}
                 className="min-h-[48px] rounded-xl text-sm font-semibold text-slate-600"
               >
-                Cancel
+                {dict.common.actions.cancel}
               </Button>
             ) : (
               <Button
@@ -304,7 +306,7 @@ export function CompleteTaskModal({
                 className="min-h-[48px] rounded-xl text-sm font-semibold text-slate-700"
               >
                 <ArrowLeft className="mr-1.5 h-4 w-4" />
-                Back
+                {m.btn_back}
               </Button>
             )}
 
@@ -319,12 +321,12 @@ export function CompleteTaskModal({
                 {submitting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {uploading ? "Uploading…" : "Submitting…"}
+                    {uploading ? m.btn_uploading : m.btn_submitting}
                   </>
                 ) : (
                   <>
                     <Upload className="mr-2 h-4 w-4" />
-                    Submit Now
+                    {m.btn_submit}
                   </>
                 )}
               </Button>
@@ -334,7 +336,7 @@ export function CompleteTaskModal({
                 disabled={step === "upload" && !file}
                 className="min-h-[48px] flex-1 sm:flex-none rounded-xl px-6 text-sm font-bold bg-[#1E3A8A] hover:bg-[#1E3A8A]/90 text-white shadow-lg shadow-indigo-500/25 disabled:opacity-50 disabled:shadow-none transition active:scale-[0.98]"
               >
-                Next
+                {m.btn_next}
                 <ArrowRight className="ml-1.5 h-4 w-4" />
               </Button>
             )}

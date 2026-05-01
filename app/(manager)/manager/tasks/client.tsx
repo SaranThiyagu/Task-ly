@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { format, isPast, formatDistanceToNowStrict } from "date-fns";
 import { createClient } from "@/lib/supabase/client";
@@ -21,6 +21,8 @@ import {
   Loader2,
   X,
   Plus,
+  ShieldAlert,
+  Users,
 } from "lucide-react";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { CreateTaskModal } from "@/components/supervisor/CreateTaskModal";
@@ -28,16 +30,10 @@ import type { StaffOption } from "@/components/supervisor/CreateTaskModal";
 import type { TaskStatus, TaskPriority, Profile } from "@/lib/types";
 
 /* ─────────────────────────────────
-   Design tokens (consistent w/ supervisor system)
-   Critical / Overdue : #EF4444 red
-   High               : #F59E0B orange
-   Medium             : #FACC15 yellow
-   Low                : #22C55E emerald
-   Completed          : soft emerald
-   In Review          : indigo / #1E3A8A
+   Types
    ───────────────────────────────── */
 
-interface TaskWithStaff {
+interface TaskWithProfiles {
   id: string;
   title: string;
   description: string | null;
@@ -47,18 +43,31 @@ interface TaskWithStaff {
   due_date: string;
   completed_at: string | null;
   created_at: string;
-  assigned_to_profile: Pick<Profile, "full_name" | "avatar_url">;
+  has_escalation: boolean;
+  assigned_to_profile:
+    | Pick<Profile, "id" | "full_name" | "avatar_url" | "role">
+    | Pick<Profile, "id" | "full_name" | "avatar_url" | "role">[]
+    | null;
+  created_by_profile:
+    | Pick<Profile, "id" | "full_name" | "avatar_url" | "role">
+    | Pick<Profile, "id" | "full_name" | "avatar_url" | "role">[]
+    | null;
 }
 
-interface AllTasksClientProps {
-  tasks: TaskWithStaff[];
+interface ManagerAllTasksClientProps {
+  tasks: TaskWithProfiles[];
   staffList: StaffOption[];
 }
 
 type DisplayStatus = TaskStatus | "in_review";
-type StatusFilterKey = "all" | DisplayStatus;
+type StatusFilterKey = "all" | DisplayStatus | "escalated";
 type PriorityFilterKey = "all" | TaskPriority;
 type SortKey = "newest" | "due" | "priority" | "status";
+
+function unwrapProfile<T>(val: T | T[] | null): T | undefined {
+  if (val === null || val === undefined) return undefined;
+  return Array.isArray(val) ? val[0] : val;
+}
 
 /* ── Status theme ── */
 const STATUS_THEME: Record<
@@ -143,7 +152,6 @@ const STATUS_THEME: Record<
   },
 };
 
-/* ── Priority theme ── */
 const PRIORITY_THEME: Record<
   TaskPriority,
   { label: string; badgeBg: string; badgeText: string; dot: string }
@@ -189,25 +197,37 @@ const STATUS_RANK: Record<DisplayStatus, number> = {
   completed: 5,
 };
 
-const PAGE_SIZE = 12;
+const PAGE_SIZE = 15;
 
 /* ══════════════════════════════════════════════════
    MAIN COMPONENT
    ══════════════════════════════════════════════════ */
 
-export function AllTasksClient({ tasks: initialTasks, staffList }: AllTasksClientProps) {
+export function ManagerAllTasksClient({
+  tasks: initialTasks,
+  staffList,
+}: ManagerAllTasksClientProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+
   const [tasks, setTasks] = useState(initialTasks);
   const [createOpen, setCreateOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilterKey>("all");
-  const [priorityFilter, setPriorityFilter] =
-    useState<PriorityFilterKey>("all");
+
+  // Initialise status filter from ?status= URL param
+  const urlStatus = searchParams.get("status") as StatusFilterKey | null;
+  const validStatuses: StatusFilterKey[] = [
+    "all", "overdue", "pending", "in_progress", "in_review",
+    "completed", "rejected", "escalated",
+  ];
+  const [statusFilter, setStatusFilter] = useState<StatusFilterKey>(
+    urlStatus && validStatuses.includes(urlStatus) ? urlStatus : "all",
+  );
+  const [priorityFilter, setPriorityFilter] = useState<PriorityFilterKey>("all");
   const [sortMode, setSortMode] = useState<SortKey>("newest");
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
-  /* Defer time-based logic to avoid SSR/CSR hydration mismatches */
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
@@ -215,10 +235,15 @@ export function AllTasksClient({ tasks: initialTasks, staffList }: AllTasksClien
   useEffect(() => {
     const supabase = createClient();
     const channel = supabase
-      .channel("supervisor-all-tasks")
+      .channel("manager-all-tasks")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "tasks" },
+        () => router.refresh(),
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "escalations" },
         () => router.refresh(),
       )
       .subscribe();
@@ -231,9 +256,8 @@ export function AllTasksClient({ tasks: initialTasks, staffList }: AllTasksClien
     setTasks(initialTasks);
   }, [initialTasks]);
 
-  /* ── Compute display status (overdue derives from due_date) ── */
-  function getDisplayStatus(task: TaskWithStaff): DisplayStatus {
-    if (!mounted) return task.status; // server-stable
+  function getDisplayStatus(task: TaskWithProfiles): DisplayStatus {
+    if (!mounted) return task.status;
     if (
       (task.status === "pending" || task.status === "in_progress") &&
       isPast(new Date(task.due_date))
@@ -245,7 +269,7 @@ export function AllTasksClient({ tasks: initialTasks, staffList }: AllTasksClien
 
   /* ── Counts for filter pills ── */
   const counts = useMemo(() => {
-    const c = {
+    const c: Record<string, number> = {
       all: tasks.length,
       pending: 0,
       in_progress: 0,
@@ -253,6 +277,7 @@ export function AllTasksClient({ tasks: initialTasks, staffList }: AllTasksClien
       completed: 0,
       rejected: 0,
       overdue: 0,
+      escalated: 0,
       critical: 0,
       high: 0,
       medium: 0,
@@ -260,8 +285,9 @@ export function AllTasksClient({ tasks: initialTasks, staffList }: AllTasksClien
     };
     for (const t of tasks) {
       const ds = getDisplayStatus(t);
-      if (ds in c) (c as Record<string, number>)[ds] += 1;
-      if (t.priority in c) (c as Record<string, number>)[t.priority] += 1;
+      c[ds] = (c[ds] || 0) + 1;
+      c[t.priority] = (c[t.priority] || 0) + 1;
+      if (t.has_escalation) c.escalated += 1;
     }
     return c;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -272,15 +298,21 @@ export function AllTasksClient({ tasks: initialTasks, staffList }: AllTasksClien
     return tasks
       .filter((t) => {
         const ds = getDisplayStatus(t);
-        if (statusFilter !== "all" && ds !== statusFilter) return false;
+        if (statusFilter === "escalated") {
+          if (!t.has_escalation) return false;
+        } else if (statusFilter !== "all" && ds !== statusFilter) {
+          return false;
+        }
         if (priorityFilter !== "all" && t.priority !== priorityFilter)
           return false;
         if (search.trim()) {
           const q = search.toLowerCase();
+          const assignee = unwrapProfile(t.assigned_to_profile);
+          const creator = unwrapProfile(t.created_by_profile);
           return (
             t.title.toLowerCase().includes(q) ||
-            (t.assigned_to_profile?.full_name?.toLowerCase().includes(q) ??
-              false) ||
+            assignee?.full_name?.toLowerCase().includes(q) ||
+            creator?.full_name?.toLowerCase().includes(q) ||
             (t.site_location?.toLowerCase().includes(q) ?? false)
           );
         }
@@ -288,9 +320,7 @@ export function AllTasksClient({ tasks: initialTasks, staffList }: AllTasksClien
       })
       .sort((a, b) => {
         if (sortMode === "due") {
-          return (
-            new Date(a.due_date).getTime() - new Date(b.due_date).getTime()
-          );
+          return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
         }
         if (sortMode === "priority") {
           return PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority];
@@ -300,14 +330,11 @@ export function AllTasksClient({ tasks: initialTasks, staffList }: AllTasksClien
             STATUS_RANK[getDisplayStatus(a)] - STATUS_RANK[getDisplayStatus(b)]
           );
         }
-        return (
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        );
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tasks, search, statusFilter, priorityFilter, sortMode, mounted]);
 
-  /* Reset visibleCount when filters change */
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
   }, [search, statusFilter, priorityFilter, sortMode]);
@@ -315,14 +342,14 @@ export function AllTasksClient({ tasks: initialTasks, staffList }: AllTasksClien
   const visibleTasks = filtered.slice(0, visibleCount);
   const hasMore = filtered.length > visibleCount;
 
-  /* ── Filter chip definitions ── */
   const statusFilters: {
     key: StatusFilterKey;
     label: string;
-    tone: "neutral" | DisplayStatus;
+    tone: "neutral" | DisplayStatus | "escalated";
   }[] = [
     { key: "all", label: "All", tone: "neutral" },
     { key: "overdue", label: "Overdue", tone: "overdue" },
+    { key: "escalated", label: "Escalated", tone: "escalated" },
     { key: "pending", label: "Pending", tone: "pending" },
     { key: "in_progress", label: "In Progress", tone: "in_progress" },
     { key: "completed", label: "Completed", tone: "completed" },
@@ -360,16 +387,21 @@ export function AllTasksClient({ tasks: initialTasks, staffList }: AllTasksClien
             </span>
           </div>
           <p className="mt-1 text-[13px] text-slate-500">
-            View, filter, and manage every task across your team
+            Cross-team task visibility — search, filter, and triage across all sites
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {urgentCount > 0 && mounted && (
             <div className="inline-flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-[12px] font-bold text-red-700 shadow-sm">
               <AlertOctagon className="h-4 w-4 text-red-500" />
-              {urgentCount} need attention ({counts.overdue} overdue ·{" "}
-              {counts.critical} critical)
+              {urgentCount} urgent ({counts.overdue} overdue · {counts.critical} critical)
+            </div>
+          )}
+          {counts.escalated > 0 && mounted && (
+            <div className="inline-flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] font-bold text-amber-700 shadow-sm">
+              <ShieldAlert className="h-4 w-4 text-amber-500" />
+              {counts.escalated} escalated
             </div>
           )}
           <button
@@ -398,7 +430,7 @@ export function AllTasksClient({ tasks: initialTasks, staffList }: AllTasksClien
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search tasks, staff, or location..."
+            placeholder="Search by task title, staff name, supervisor, or site..."
             className="h-11 w-full rounded-2xl border border-slate-200 bg-white pl-10 pr-10 text-[14px] text-slate-700 placeholder:text-slate-400 shadow-sm transition focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-100"
           />
           {search && (
@@ -422,25 +454,37 @@ export function AllTasksClient({ tasks: initialTasks, staffList }: AllTasksClien
             {statusFilters.map((f) => {
               const active = statusFilter === f.key;
               const isAll = f.key === "all";
-              const tone = !isAll
-                ? STATUS_THEME[f.tone as DisplayStatus]
-                : null;
-              const count =
-                f.key === "all"
-                  ? counts.all
-                  : (counts as Record<string, number>)[f.key] || 0;
+              const isEscalated = f.key === "escalated";
+              const tone =
+                !isAll && !isEscalated
+                  ? STATUS_THEME[f.tone as DisplayStatus]
+                  : null;
+              const count = f.key === "all" ? counts.all : counts[f.key] || 0;
+
+              let activeBg = "bg-slate-900 text-white shadow-md";
+              if (!isAll) {
+                if (isEscalated) {
+                  activeBg = "bg-amber-500 text-white shadow-md";
+                } else {
+                  activeBg = `${tone?.pillBg} ${tone?.pillText} shadow-md`;
+                }
+              }
+
               return (
                 <button
                   key={f.key}
                   onClick={() => setStatusFilter(f.key)}
                   className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-[12px] font-bold transition min-h-[40px] ${
                     active
-                      ? isAll
-                        ? "bg-slate-900 text-white shadow-md"
-                        : `${tone?.pillBg} ${tone?.pillText} shadow-md`
+                      ? activeBg
                       : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
                   }`}
                 >
+                  {isEscalated && (
+                    <ShieldAlert
+                      className={`h-3 w-3 ${active ? "text-white" : "text-amber-500"}`}
+                    />
+                  )}
                   {f.label}
                   <span
                     className={`inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10.5px] font-bold ${
@@ -468,10 +512,7 @@ export function AllTasksClient({ tasks: initialTasks, staffList }: AllTasksClien
                 const active = priorityFilter === f.key;
                 const theme =
                   f.key !== "all" ? PRIORITY_THEME[f.key as TaskPriority] : null;
-                const count =
-                  f.key === "all"
-                    ? counts.all
-                    : (counts as Record<string, number>)[f.key] || 0;
+                const count = f.key === "all" ? counts.all : counts[f.key] || 0;
                 return (
                   <button
                     key={f.key}
@@ -486,9 +527,7 @@ export function AllTasksClient({ tasks: initialTasks, staffList }: AllTasksClien
                   >
                     {theme && (
                       <span
-                        className={`h-2 w-2 rounded-full ${
-                          active ? "bg-white/90" : theme.dot
-                        }`}
+                        className={`h-2 w-2 rounded-full ${active ? "bg-white/90" : theme.dot}`}
                       />
                     )}
                     {f.label}
@@ -569,7 +608,6 @@ export function AllTasksClient({ tasks: initialTasks, staffList }: AllTasksClien
             ))}
           </div>
 
-          {/* Pagination */}
           {hasMore && (
             <div className="flex justify-center pt-2">
               <button
@@ -585,7 +623,8 @@ export function AllTasksClient({ tasks: initialTasks, staffList }: AllTasksClien
 
           <p className="text-center text-[11px] text-slate-400">
             Showing {visibleTasks.length} of {filtered.length}
-            {filtered.length !== tasks.length && ` (filtered from ${tasks.length})`}
+            {filtered.length !== tasks.length &&
+              ` (filtered from ${tasks.length})`}
           </p>
         </>
       )}
@@ -602,20 +641,22 @@ function TaskCard({
   displayStatus,
   mounted,
 }: {
-  task: TaskWithStaff;
+  task: TaskWithProfiles;
   displayStatus: DisplayStatus;
   mounted: boolean;
 }) {
   const theme = STATUS_THEME[displayStatus];
   const priorityTheme = PRIORITY_THEME[task.priority];
-  const isUrgent =
-    displayStatus === "overdue" || task.priority === "critical";
+  const isUrgent = displayStatus === "overdue" || task.priority === "critical";
   const dueDate = new Date(task.due_date);
   const isOverdue = displayStatus === "overdue";
 
+  const assignee = unwrapProfile(task.assigned_to_profile);
+  const creator = unwrapProfile(task.created_by_profile);
+
   return (
     <Link
-      href={`/supervisor/reviews/${task.id}`}
+      href={`/manager/tasks/${task.id}`}
       className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 rounded-2xl"
     >
       <article
@@ -632,20 +673,26 @@ function TaskCard({
         />
 
         <div className="flex flex-col gap-4 p-4 pl-5 sm:flex-row sm:items-center sm:gap-5 sm:p-5 sm:pl-6">
-          {/* Avatar */}
+          {/* Assignee Avatar */}
           <UserAvatar
-            name={task.assigned_to_profile?.full_name || "?"}
-            avatarUrl={task.assigned_to_profile?.avatar_url}
+            name={assignee?.full_name || "?"}
+            avatarUrl={assignee?.avatar_url ?? null}
             size="md"
             className="h-11 w-11 shrink-0 rounded-2xl ring-2 ring-white shadow-sm"
           />
 
           {/* Info */}
           <div className="min-w-0 flex-1">
-            {/* Badges row */}
+            {/* Badges */}
             <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
               <StatusBadge status={displayStatus} />
               <PriorityBadge priority={task.priority} />
+              {task.has_escalation && (
+                <span className="inline-flex items-center gap-1 rounded-md bg-amber-500 px-2 py-0.5 text-[10.5px] font-extrabold uppercase tracking-wider text-white shadow-sm">
+                  <ShieldAlert className="h-3 w-3" />
+                  Escalated
+                </span>
+              )}
               {isOverdue && mounted && (
                 <span
                   className="inline-flex items-center gap-1 rounded-md bg-red-100 px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-wider text-red-700"
@@ -664,9 +711,21 @@ function TaskCard({
 
             {/* Meta */}
             <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-slate-500">
+              {/* Assignee */}
               <span className="inline-flex items-center gap-1 font-semibold text-slate-700">
-                {task.assigned_to_profile?.full_name || "Unassigned"}
+                {assignee?.full_name || "Unassigned"}
               </span>
+
+              {/* Supervisor (creator) */}
+              {creator && (
+                <span className="inline-flex items-center gap-1">
+                  <Users className="h-3 w-3 text-indigo-400" />
+                  <span className="text-indigo-700 font-medium">
+                    {creator.full_name}
+                  </span>
+                </span>
+              )}
+
               {task.site_location && (
                 <span className="inline-flex items-center gap-1">
                   <MapPin className="h-3 w-3 text-slate-400" />
@@ -712,7 +771,7 @@ function TaskCard({
    STATUS / PRIORITY BADGES
    ══════════════════════════════════════════════════ */
 
-export function StatusBadge({ status }: { status: DisplayStatus }) {
+function StatusBadge({ status }: { status: DisplayStatus }) {
   const theme = STATUS_THEME[status];
   const Icon = theme.icon;
   return (
@@ -721,9 +780,7 @@ export function StatusBadge({ status }: { status: DisplayStatus }) {
     >
       <Icon
         className={`h-3 w-3 ${
-          status === "in_progress" || status === "in_review"
-            ? "animate-spin"
-            : ""
+          status === "in_progress" || status === "in_review" ? "animate-spin" : ""
         }`}
       />
       {theme.label}
@@ -731,7 +788,7 @@ export function StatusBadge({ status }: { status: DisplayStatus }) {
   );
 }
 
-export function PriorityBadge({ priority }: { priority: TaskPriority }) {
+function PriorityBadge({ priority }: { priority: TaskPriority }) {
   const theme = PRIORITY_THEME[priority];
   const icon =
     priority === "critical" ? (
@@ -759,9 +816,7 @@ function EmptyState({ onClear }: { onClear: () => void }) {
       <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-50 ring-1 ring-slate-100">
         <Inbox className="h-7 w-7 text-slate-300" />
       </div>
-      <h3 className="text-base font-extrabold text-slate-900">
-        No tasks found
-      </h3>
+      <h3 className="text-base font-extrabold text-slate-900">No tasks found</h3>
       <p className="mt-1 max-w-xs text-[13px] text-slate-500">
         Try adjusting your filters or search query
       </p>

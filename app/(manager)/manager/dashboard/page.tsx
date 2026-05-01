@@ -37,7 +37,7 @@ export default async function ManagerDashboardPage() {
   const { data: tasks } = await supabase
     .from("tasks")
     .select(
-      "id, title, status, priority, site_location, assigned_to, due_date, completed_at, created_at",
+      "id, title, status, priority, site_location, assigned_to, created_by, due_date, completed_at, created_at",
     );
 
   const allTasks = tasks || [];
@@ -143,6 +143,50 @@ export default async function ManagerDashboardPage() {
     .select("id, full_name, avatar_url")
     .eq("role", "supervisor")
     .order("full_name");
+
+  /* ── Staff list (for Create Task modal) ── */
+  const { data: staffList } = await supabase
+    .from("profiles")
+    .select("id, full_name, avatar_url")
+    .eq("role", "staff")
+    .order("full_name", { ascending: true });
+
+  /* ── Supervisor performance breakdown ── */
+  const supervisorBreakdown = (supervisors || []).map((sup) => {
+    const supTasks = allTasks.filter((t) => t.created_by === sup.id);
+    const supAssigned = supTasks.length;
+    const supCompleted = supTasks.filter((t) => t.status === "completed").length;
+    const supOverdue = supTasks.filter(
+      (t) =>
+        (t.status === "pending" || t.status === "in_progress") &&
+        t.due_date &&
+        new Date(t.due_date) < now,
+    ).length;
+    const supInProgress = supTasks.filter(
+      (t) => t.status === "in_progress",
+    ).length;
+    const supRate =
+      supAssigned > 0
+        ? Math.round((supCompleted / supAssigned) * 100)
+        : 0;
+    const supEscalations = openEscalations.filter((e) => {
+      const from = Array.isArray(e.from_profile)
+        ? e.from_profile[0]
+        : e.from_profile;
+      return (from as { id: string } | undefined)?.id === sup.id;
+    }).length;
+    return {
+      id: sup.id,
+      full_name: sup.full_name,
+      avatar_url: sup.avatar_url ?? null,
+      assigned: supAssigned,
+      completed: supCompleted,
+      overdue: supOverdue,
+      inProgress: supInProgress,
+      completionRate: supRate,
+      escalationCount: supEscalations,
+    };
+  });
 
   /* ── Site performance breakdown ── */
   const siteMap = new Map<
@@ -261,8 +305,10 @@ export default async function ManagerDashboardPage() {
       }}
       escalations={openEscalations}
       sitePerformance={sitePerformance}
+      supervisorBreakdown={supervisorBreakdown}
       recentCompletions={recentCompletions || []}
       supervisors={supervisors || []}
+      staffList={staffList || []}
       chartData={chart}
     />
   );

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { format, formatDistanceToNowStrict } from "date-fns";
 import { toast } from "sonner";
@@ -90,8 +90,15 @@ export function ManagerEscalationsClient({
 }: ManagerEscalationsClientProps) {
   void profile;
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [escalations, setEscalations] = useState(initialEscalations);
-  const [filter, setFilter] = useState<FilterKey>("open");
+
+  // Initialise filter from ?filter= URL param if valid
+  const urlFilter = searchParams.get("filter") as FilterKey | null;
+  const validFilters: FilterKey[] = ["open", "critical", "resolved", "all"];
+  const [filter, setFilter] = useState<FilterKey>(
+    urlFilter && validFilters.includes(urlFilter) ? urlFilter : "open",
+  );
   const [search, setSearch] = useState("");
 
   // SSR-safe time rendering

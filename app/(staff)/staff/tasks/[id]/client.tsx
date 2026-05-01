@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Badge } from "@/components/ui/badge";
+import { useDictionary } from "@/lib/i18n/dictionary-provider";
 import type {
   Task,
   Profile,
@@ -80,6 +81,8 @@ export function TaskDetailClient({
   reviews,
 }: TaskDetailClientProps) {
   const router = useRouter();
+  const dict = useDictionary();
+  const td = dict.staff.taskDetail;
   const [starting, setStarting] = useState(false);
   const [resubmitting, setResubmitting] = useState(false);
   const [completeModalOpen, setCompleteModalOpen] = useState(false);
@@ -102,7 +105,7 @@ export function TaskDetailClient({
       setStarting(false);
       return;
     }
-    toast.success("Task started — let's get it done 💪");
+    toast.success(td.toast_started);
     router.refresh();
     setStarting(false);
   }
@@ -115,21 +118,21 @@ export function TaskDetailClient({
       setResubmitting(false);
       return;
     }
-    toast.success("Task reopened — submit new evidence");
+    toast.success(td.toast_reopened);
     router.refresh();
     setResubmitting(false);
   }
 
   /* Status badge for breadcrumb row */
   const statusBadge = isOverdue
-    ? { label: "Overdue", cls: "bg-red-50 text-red-700 ring-red-200", dot: "bg-red-500" }
+    ? { label: dict.common.status.overdue, cls: "bg-red-50 text-red-700 ring-red-200", dot: "bg-red-500" }
     : isCompleted
-      ? { label: "Completed", cls: "bg-emerald-50 text-emerald-700 ring-emerald-200", dot: "bg-emerald-500" }
+      ? { label: dict.common.status.completed, cls: "bg-emerald-50 text-emerald-700 ring-emerald-200", dot: "bg-emerald-500" }
       : isInProgress
-        ? { label: "In Progress", cls: "bg-blue-50 text-blue-700 ring-blue-200", dot: "bg-blue-500" }
+        ? { label: dict.common.status.in_progress, cls: "bg-blue-50 text-blue-700 ring-blue-200", dot: "bg-blue-500" }
         : isRejected
-          ? { label: "Rejected", cls: "bg-red-50 text-red-700 ring-red-200", dot: "bg-red-500" }
-          : { label: "Pending", cls: "bg-slate-50 text-slate-600 ring-slate-200", dot: "bg-slate-400" };
+          ? { label: dict.common.status.rejected, cls: "bg-red-50 text-red-700 ring-red-200", dot: "bg-red-500" }
+          : { label: dict.common.status.pending, cls: "bg-slate-50 text-slate-600 ring-slate-200", dot: "bg-slate-400" };
 
   return (
     <div className="mx-auto max-w-[1100px] px-4 sm:px-6 lg:px-8 pb-32 lg:pb-8">
@@ -140,7 +143,7 @@ export function TaskDetailClient({
           className="-ml-2 inline-flex min-h-[44px] items-center gap-1.5 rounded-lg px-2 text-sm text-slate-500 transition-colors hover:text-slate-900"
         >
           <ArrowLeft className="h-4 w-4" />
-          <span className="hidden sm:inline">Back</span>
+          <span className="hidden sm:inline">{td.back}</span>
         </button>
         <span
           className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 ring-inset ${statusBadge.cls}`}
@@ -188,7 +191,7 @@ export function TaskDetailClient({
 
           {/* DESCRIPTION */}
           {task.description && (
-            <SectionCard title="Description">
+            <SectionCard title={td.description}>
               <p className="text-[15px] leading-relaxed text-slate-700 whitespace-pre-wrap">
                 {task.description}
               </p>
@@ -201,21 +204,21 @@ export function TaskDetailClient({
               <TaskInfoCard
                 tone="blue"
                 icon={<MapPin className="h-5 w-5" />}
-                label="Location"
+                label={td.location}
                 value={task.site_location}
               />
             )}
             <TaskInfoCard
               tone="violet"
               icon={<CalendarDays className="h-5 w-5" />}
-              label="Due Date"
+              label={td.due_date}
               value={format(new Date(task.due_date), "MMM d, yyyy")}
               danger={isOverdue}
             />
             <TaskInfoCard
               tone="amber"
               icon={<Clock className="h-5 w-5" />}
-              label="Due Time"
+              label={td.due_time}
               value={format(new Date(task.due_date), "h:mm a")}
               danger={isOverdue}
             />
@@ -234,7 +237,7 @@ export function TaskDetailClient({
                 )
               }
               iconAsAvatar={!!creator}
-              label="Assigned By"
+              label={td.assigned_by}
               value={creator?.full_name ?? "Unknown"}
             />
           </div>
@@ -242,9 +245,9 @@ export function TaskDetailClient({
           {/* EVIDENCE */}
           {evidence.length > 0 && (
             <SectionCard
-              title="Evidence"
+              title={td.evidence}
               icon={<FileImage className="h-4 w-4 text-[#1E3A8A]" />}
-              meta={`${evidence.length} ${evidence.length === 1 ? "submission" : "submissions"}`}
+              meta={td.submission_count.replace("{count}", String(evidence.length))}
               compact
             >
               <div className="-mx-5 -mb-5 divide-y divide-slate-100">
@@ -277,9 +280,9 @@ export function TaskDetailClient({
           {/* ACTIVITY / REVIEWS */}
           {reviews.length > 0 && (
             <SectionCard
-              title="Activity"
+              title={td.activity}
               icon={<ShieldCheck className="h-4 w-4 text-emerald-600" />}
-              meta={`${reviews.length} ${reviews.length === 1 ? "review" : "reviews"}`}
+              meta={td.review_count.replace("{count}", String(reviews.length))}
               compact
             >
               <div className="relative space-y-5 pl-6">
@@ -315,7 +318,7 @@ export function TaskDetailClient({
                                 : "bg-red-50 text-red-700"
                             }`}
                           >
-                            {approved ? "Approved" : "Rejected"}
+                            {approved ? td.approved : td.rejected}
                           </Badge>
                         </div>
                         {review.comment && (
@@ -341,7 +344,7 @@ export function TaskDetailClient({
             {/* Actions */}
             <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                Actions
+                {td.actions}
               </p>
 
               {canAct && (
@@ -362,9 +365,9 @@ export function TaskDetailClient({
                 <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
                   <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
                   <div>
-                    <p className="text-sm font-bold text-emerald-900">Completed</p>
+                    <p className="text-sm font-bold text-emerald-900">{td.completed_label}</p>
                     <p className="text-xs text-emerald-700">
-                      Awaiting supervisor review
+                      {td.awaiting_review}
                     </p>
                   </div>
                 </div>
@@ -375,7 +378,7 @@ export function TaskDetailClient({
                 {isInProgress && (
                   <SecondaryAction
                     icon={<Upload className="h-4 w-4" />}
-                    label="Upload Photos"
+                    label={td.upload_photos}
                     onClick={() => setCompleteModalOpen(true)}
                   />
                 )}
@@ -393,10 +396,10 @@ export function TaskDetailClient({
             {/* Details summary */}
             <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                Details
+                {td.details}
               </p>
               <DetailRow
-                label="Priority"
+                label={td.priority}
                 value={
                   <span
                     className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-semibold ring-1 ${priorityChip[task.priority]}`}
@@ -409,7 +412,7 @@ export function TaskDetailClient({
                 }
               />
               <DetailRow
-                label="Status"
+                label={td.status}
                 value={
                   <span
                     className={`text-xs font-semibold ${
@@ -427,7 +430,7 @@ export function TaskDetailClient({
                 }
               />
               <DetailRow
-                label="Due"
+                label={td.due}
                 value={
                   <span
                     className={`text-xs font-semibold ${isOverdue ? "text-red-600" : "text-slate-700"}`}
@@ -437,15 +440,15 @@ export function TaskDetailClient({
                 }
               />
               <DetailRow
-                label="Evidence"
+                label={td.evidence}
                 value={
                   <span className="text-xs font-semibold text-slate-700">
-                    {evidence.length} uploaded
+                    {td.evidence_count.replace("{count}", String(evidence.length))}
                   </span>
                 }
               />
               <DetailRow
-                label="Reviews"
+                label={td.reviews}
                 value={
                   <span className="text-xs font-semibold text-slate-700">
                     {reviews.length}
@@ -502,6 +505,8 @@ function HeroBanner({
   isCompleted: boolean;
   isRejected: boolean;
 }) {
+  const dict = useDictionary();
+  const td = dict.staff.taskDetail;
   const wrapperCls = isOverdue
     ? "border-2 border-red-300 bg-gradient-to-br from-red-50 via-red-50 to-rose-100 shadow-red-100"
     : isCompleted
@@ -528,24 +533,24 @@ function HeroBanner({
             <span
               className={`h-1.5 w-1.5 rounded-full ${priorityDot[task.priority]}`}
             />
-            {priorityLabel[task.priority]} Priority
+            {dict.common.priority_label.replace("{priority}", dict.common.priority[task.priority])}
           </span>
           {isOverdue && (
             <span className="inline-flex animate-pulse items-center gap-1.5 rounded-full bg-red-600 px-2.5 py-1 text-[11px] font-bold text-white shadow-sm">
               <AlertTriangle className="h-3 w-3" />
-              Overdue
+              {dict.common.status.overdue}
             </span>
           )}
           {isRejected && (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-red-600 px-2.5 py-1 text-[11px] font-bold text-white">
               <XCircle className="h-3 w-3" />
-              Rejected
+              {dict.common.status.rejected}
             </span>
           )}
           {isCompleted && (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-2.5 py-1 text-[11px] font-bold text-white">
               <CheckCircle2 className="h-3 w-3" />
-              Completed
+              {dict.common.status.completed}
             </span>
           )}
         </div>
@@ -559,7 +564,7 @@ function HeroBanner({
         {isOverdue && (
           <div className="mt-3 inline-flex items-center gap-2 rounded-lg bg-red-100 px-3 py-1.5 text-sm font-bold text-red-800">
             <Clock className="h-4 w-4" />
-            Overdue by {formatDistanceToNowStrict(new Date(task.due_date))}
+            {dict.common.time.overdue_by.replace("{time}", formatDistanceToNowStrict(new Date(task.due_date)))}
           </div>
         )}
         {isCompleted && task.completed_at && (
@@ -578,6 +583,8 @@ function HeroBanner({
    ══════════════════════════════════════════════════ */
 
 function EscalationCallout({ dueDate }: { dueDate: string }) {
+  const dict = useDictionary();
+  const td = dict.staff.taskDetail;
   return (
     <div
       role="alert"
@@ -588,14 +595,10 @@ function EscalationCallout({ dueDate }: { dueDate: string }) {
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-sm font-extrabold leading-tight text-red-900">
-          Action needed — risk of escalation
+          {td.escalation_title}
         </p>
         <p className="mt-1 text-xs leading-relaxed text-red-700">
-          This task was due{" "}
-          <span className="font-bold">
-            {formatDistanceToNowStrict(new Date(dueDate))} ago
-          </span>
-          . Complete it now to avoid escalation to your supervisor.
+          {td.escalation_body.replace("{time}", formatDistanceToNowStrict(new Date(dueDate)))}
         </p>
       </div>
     </div>
@@ -628,6 +631,8 @@ function PrimaryCTA({
   onComplete: () => void;
   onResubmit: () => void;
 }) {
+  const dict = useDictionary();
+  const td = dict.staff.taskDetail;
   const baseCls =
     "h-14 w-full rounded-2xl text-base font-bold shadow-lg transition active:scale-[0.98] flex items-center justify-center gap-2";
 
@@ -645,12 +650,12 @@ function PrimaryCTA({
         {starting ? (
           <>
             <Loader2 className="h-5 w-5 animate-spin" />
-            Starting…
+            {td.starting}
           </>
         ) : (
           <>
             <Play className="h-5 w-5" fill="currentColor" />
-            {isOverdue ? "Start Now" : "Start Task"}
+            {isOverdue ? td.start_now : td.start_task}
           </>
         )}
       </Button>
@@ -668,7 +673,7 @@ function PrimaryCTA({
         }`}
       >
         <Camera className="h-5 w-5" />
-        Submit Completion
+        {td.submit_completion}
       </Button>
     );
   }
@@ -683,12 +688,12 @@ function PrimaryCTA({
         {resubmitting ? (
           <>
             <Loader2 className="h-5 w-5 animate-spin" />
-            Reopening…
+            {td.reopening}
           </>
         ) : (
           <>
             <Play className="h-5 w-5" fill="currentColor" />
-            Resubmit Task
+            {td.resubmit_task}
           </>
         )}
       </Button>

@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { sendPushToUser } from "@/lib/push/sendPush";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey =
@@ -100,6 +101,15 @@ export async function checkAndEscalateOverdueTasks(): Promise<EscalationResult> 
           console.log(
             `[ESCALATION] ${now.toISOString()} Task "${task.title}" (${task.id}) marked overdue (${overdueHours.toFixed(1)}h)`
           );
+          // Push: notify assigned staff their task is overdue
+          if (task.assigned_to) {
+            await sendPushToUser(task.assigned_to, {
+              title: "Task Overdue ⚠️",
+              body: `"${task.title}" is overdue. Please complete it now.`,
+              url: "/staff/tasks",
+              tag: `overdue-${task.id}`,
+            });
+          }
         }
       }
 
@@ -123,6 +133,15 @@ export async function checkAndEscalateOverdueTasks(): Promise<EscalationResult> 
             console.log(
               `[ESCALATION] ${now.toISOString()} Task "${task.title}" (${task.id}) escalated to manager (${overdueHours.toFixed(1)}h overdue)`
             );
+            // Push: notify manager of escalation
+            if (managerId) {
+              await sendPushToUser(managerId, {
+                title: "Task Escalated 🔴",
+                body: `"${task.title}" overdue by ${overdueHours.toFixed(0)}h — escalated to you.`,
+                url: "/manager/escalations",
+                tag: `escalation-${task.id}`,
+              });
+            }
           }
         }
       }
@@ -155,6 +174,29 @@ export async function checkAndEscalateOverdueTasks(): Promise<EscalationResult> 
             console.log(
               `[ESCALATION] ${now.toISOString()} CRITICAL: Task "${task.title}" (${task.id}) — ${overdueHours.toFixed(1)}h overdue`
             );
+            // Push: notify both staff and manager for critical escalation
+            const criticalPushes: Promise<void>[] = [];
+            if (task.assigned_to) {
+              criticalPushes.push(
+                sendPushToUser(task.assigned_to, {
+                  title: "CRITICAL: Task Requires Immediate Action 🚨",
+                  body: `"${task.title}" is critically overdue (${overdueHours.toFixed(0)}h). Act now.`,
+                  url: "/staff/tasks",
+                  tag: `critical-${task.id}`,
+                })
+              );
+            }
+            if (managerId) {
+              criticalPushes.push(
+                sendPushToUser(managerId, {
+                  title: "CRITICAL Escalation 🚨",
+                  body: `"${task.title}" is ${overdueHours.toFixed(0)}h overdue — immediate attention required.`,
+                  url: "/manager/escalations",
+                  tag: `critical-mgr-${task.id}`,
+                })
+              );
+            }
+            await Promise.allSettled(criticalPushes);
           }
         }
       }

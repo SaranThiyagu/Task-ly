@@ -25,6 +25,7 @@ import {
   Sheet,
   SheetContent,
 } from "@/components/ui/sheet";
+import { useDictionary } from "@/lib/i18n/dictionary-provider";
 import type { Task, TaskReview, TaskEvidence, Profile, TaskPriority } from "@/lib/types";
 
 interface TaskWithReviews extends Task {
@@ -88,6 +89,8 @@ export function CompletedTasksClient({
   tasks,
   reviewerProfiles,
 }: CompletedTasksClientProps) {
+  const dict = useDictionary();
+  const c = dict.staff.completed;
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [selectedTask, setSelectedTask] = useState<TaskWithReviews | null>(null);
@@ -152,10 +155,10 @@ export function CompletedTasksClient({
   }
 
   const filterTabs: { key: StatusFilter; label: string; count: number }[] = [
-    { key: "all", label: "All", count: counts.total },
-    { key: "approved", label: "Approved", count: counts.approved },
-    { key: "pending", label: "In Review", count: counts.pending },
-    { key: "rejected", label: "Rejected", count: counts.rejected },
+    { key: "all", label: c.filter_all, count: counts.total },
+    { key: "approved", label: c.filter_approved, count: counts.approved },
+    { key: "pending", label: c.filter_in_review, count: counts.pending },
+    { key: "rejected", label: c.filter_rejected, count: counts.rejected },
   ];
 
   return (
@@ -163,10 +166,10 @@ export function CompletedTasksClient({
       {/* ════════ HEADER ════════ */}
       <header>
         <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
-          Completed Tasks
+          {c.heading}
         </h1>
         <p className="mt-1 text-sm text-slate-500">
-          Track your submission history and review outcomes
+          {c.subtitle}
         </p>
       </header>
 
@@ -175,23 +178,23 @@ export function CompletedTasksClient({
         <SummaryCard
           tone="green"
           icon={<CheckCircle2 className="h-6 w-6" />}
-          label="Approved"
-          subLabel="Great work!"
+          label={c.summary_approved}
+          subLabel={c.summary_approved_sub}
           count={counts.approved}
         />
         <SummaryCard
           tone="orange"
           icon={<Hourglass className="h-6 w-6" />}
-          label="In Review"
-          subLabel="Awaiting decision"
+          label={c.summary_in_review}
+          subLabel={c.summary_in_review_sub}
           count={counts.pending}
           pulse={counts.pending > 0}
         />
         <SummaryCard
           tone="red"
           icon={<XCircle className="h-6 w-6" />}
-          label="Rejected"
-          subLabel={counts.rejected > 0 ? "Needs your attention" : "Nothing rejected"}
+          label={c.summary_rejected}
+          subLabel={counts.rejected > 0 ? c.summary_rejected_sub : c.summary_no_rejected}
           count={counts.rejected}
           attention={counts.rejected > 0}
         />
@@ -209,10 +212,10 @@ export function CompletedTasksClient({
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-bold text-red-900">
-              {counts.rejected} task{counts.rejected > 1 ? "s" : ""} rejected — please resubmit
+              {c.rejected_alert.replace("{count}", String(counts.rejected))}
             </p>
             <p className="mt-0.5 text-xs text-red-700">
-              Review supervisor feedback and try again
+              {c.rejected_alert_body}
             </p>
           </div>
           <ArrowRight className="h-4 w-4 text-red-700" />
@@ -225,7 +228,7 @@ export function CompletedTasksClient({
         <div className="relative">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
           <Input
-            placeholder="Search by task name or location…"
+            placeholder={c.search_placeholder}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="h-12 rounded-2xl border-slate-200 bg-white pl-10 pr-10 text-sm shadow-sm focus-visible:border-[#1E3A8A] focus-visible:ring-2 focus-visible:ring-indigo-100"
@@ -450,6 +453,8 @@ function TaskHistoryCard({
   task: TaskWithReviews;
   onClick: () => void;
 }) {
+  const dict = useDictionary();
+  const c = dict.staff.completed;
   const { isApproved, isRejected, isPending } = getReviewStatus(task);
   const evidenceCount = task.task_evidence?.length || 0;
   const reviewCount = task.task_reviews?.length || 0;
@@ -464,18 +469,18 @@ function TaskHistoryCard({
     ? {
         cls: "bg-red-500 text-white shadow-sm shadow-red-500/30",
         icon: <XCircle className="h-3.5 w-3.5" />,
-        label: "Rejected",
+        label: c.status_rejected,
       }
     : isApproved
       ? {
           cls: "bg-emerald-500 text-white shadow-sm shadow-emerald-500/30",
           icon: <CheckCircle2 className="h-3.5 w-3.5" />,
-          label: "Approved",
+          label: c.status_approved,
         }
       : {
           cls: "bg-amber-500 text-white shadow-sm shadow-amber-500/30",
           icon: <Hourglass className="h-3.5 w-3.5" />,
-          label: "In Review",
+          label: c.status_in_review,
         };
 
   return (
@@ -541,7 +546,7 @@ function TaskHistoryCard({
           </div>
 
           <div className="flex items-center gap-1 text-xs font-semibold text-slate-400 group-hover:text-[#1E3A8A] transition-colors">
-            <span className="hidden sm:inline">View</span>
+            <span className="hidden sm:inline">{c.view}</span>
             <ChevronRight className="h-4 w-4" />
           </div>
         </div>
@@ -550,7 +555,7 @@ function TaskHistoryCard({
         {isRejected && (
           <div className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-red-100 px-2.5 py-1 text-[11px] font-bold text-red-700">
             <AlertTriangle className="h-3.5 w-3.5" />
-            Tap to see feedback
+            {c.tap_feedback}
           </div>
         )}
       </div>
@@ -569,6 +574,8 @@ function EmptyState({
   hasTasks: boolean;
   onClear: () => void;
 }) {
+  const dict = useDictionary();
+  const c = dict.staff.completed;
   return (
     <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-white px-6 py-16 text-center sm:py-20">
       <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-50">
@@ -579,19 +586,17 @@ function EmptyState({
         )}
       </div>
       <h3 className="mt-4 text-base font-bold text-slate-900">
-        {hasTasks ? "No tasks match your filters" : "No completed tasks yet"}
+        {hasTasks ? c.empty_filter_title : c.empty_title}
       </h3>
       <p className="mt-1 max-w-xs text-sm text-slate-500">
-        {hasTasks
-          ? "Try adjusting your search or filter criteria"
-          : "Tasks you complete will appear here with their review status"}
+        {hasTasks ? c.empty_filter_body : c.empty_body}
       </p>
       {hasTasks && (
         <button
           onClick={onClear}
           className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-[#1E3A8A] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1E3A8A]/90 active:scale-[0.98]"
         >
-          Clear all filters
+          {dict.common.actions.clearFilters}
         </button>
       )}
     </div>
@@ -609,6 +614,8 @@ function DrawerContent({
   task: TaskWithReviews;
   reviewerProfiles: Profile[];
 }) {
+  const dict = useDictionary();
+  const c = dict.staff.completed;
   const { isApproved, isRejected } = getReviewStatus(task);
   const reviews = task.task_reviews || [];
   const evidence = task.task_evidence || [];
@@ -632,7 +639,7 @@ function DrawerContent({
             ) : (
               <Hourglass className="h-3.5 w-3.5" />
             )}
-            {isRejected ? "Rejected" : isApproved ? "Approved" : "In Review"}
+            {isRejected ? c.status_rejected : isApproved ? c.status_approved : c.status_in_review}
           </span>
           <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2.5 py-1 text-[11px] font-bold backdrop-blur-sm">
             {priorityLabel[task.priority]} Priority
@@ -654,7 +661,7 @@ function DrawerContent({
         {task.description && (
           <div>
             <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              Description
+              {c.drawer_description}
             </p>
             <p className="text-sm leading-relaxed text-slate-700">
               {task.description}
@@ -667,18 +674,18 @@ function DrawerContent({
           {task.site_location && (
             <InfoTile
               icon={<MapPin className="h-4 w-4 text-blue-500" />}
-              label="Location"
+              label={c.drawer_location}
               value={task.site_location}
             />
           )}
           <InfoTile
             icon={<Calendar className="h-4 w-4 text-violet-500" />}
-            label="Due Date"
+            label={c.drawer_due_date}
             value={format(new Date(task.due_date), "MMM d, yyyy")}
           />
           <InfoTile
             icon={<Clock className="h-4 w-4 text-amber-500" />}
-            label="Submitted"
+            label={c.drawer_submitted}
             value={
               task.completed_at
                 ? format(new Date(task.completed_at), "MMM d, h:mm a")
@@ -692,7 +699,7 @@ function DrawerContent({
           <div>
             <p className="mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
               <FileImage className="h-3.5 w-3.5" />
-              Evidence ({evidence.length})
+              {c.drawer_evidence.replace("{count}", String(evidence.length))}
             </p>
             <div className="space-y-3">
               {evidence.map((ev) => (
@@ -727,7 +734,7 @@ function DrawerContent({
           <div>
             <p className="mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
               <Sparkles className="h-3.5 w-3.5" />
-              Review Timeline
+              {c.drawer_review_timeline}
             </p>
             <div className="relative space-y-4 pl-5">
               <div className="absolute left-[7px] top-1 bottom-1 w-px bg-slate-200" />
@@ -759,7 +766,7 @@ function DrawerContent({
                               : "bg-red-500 text-white"
                           }`}
                         >
-                          {approved ? "Approved" : "Rejected"}
+                          {approved ? c.status_approved : c.status_rejected}
                         </Badge>
                         <span className="text-xs text-slate-500">
                           by{" "}
@@ -792,10 +799,10 @@ function DrawerContent({
           <div className="flex flex-col items-center rounded-xl border border-dashed border-amber-200 bg-amber-50/40 py-8 text-center">
             <Hourglass className="mb-2 h-8 w-8 text-amber-400" />
             <p className="text-sm font-bold text-amber-900">
-              Awaiting supervisor review
+              {c.awaiting_review}
             </p>
             <p className="mt-0.5 text-xs text-amber-700">
-              You&apos;ll be notified when reviewed
+              {c.awaiting_notify}
             </p>
           </div>
         )}

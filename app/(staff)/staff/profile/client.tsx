@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { updateAvatarUrl } from "./actions";
+import { useDictionary } from "@/lib/i18n/dictionary-provider";
 import type { Profile } from "@/lib/types";
 
 interface ProfileClientProps {
@@ -37,6 +38,8 @@ interface ProfileClientProps {
 
 export function ProfileClient({ profile, stats }: ProfileClientProps) {
   const router = useRouter();
+  const dict = useDictionary();
+  const p = dict.staff.profile;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [currentAvatarUrl, setCurrentAvatarUrl] = useState(profile.avatar_url);
@@ -75,11 +78,11 @@ export function ProfileClient({ profile, stats }: ProfileClientProps) {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith("image/")) {
-      toast.error("Please select an image file");
+      toast.error(p.toast_select_image);
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      toast.error("Image must be under 5MB");
+      toast.error(p.toast_image_size);
       return;
     }
 
@@ -114,11 +117,11 @@ export function ProfileClient({ profile, stats }: ProfileClientProps) {
         toast.error(result.error);
       } else {
         setCurrentAvatarUrl(avatarUrl);
-        toast.success("Profile photo updated!");
+        toast.success(p.toast_photo_updated);
         router.refresh();
       }
     } catch {
-      toast.error("Failed to upload photo");
+      toast.error(p.toast_upload_failed);
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -130,7 +133,7 @@ export function ProfileClient({ profile, stats }: ProfileClientProps) {
     stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0;
   const pending = stats.total - stats.completed;
 
-  const tier = getPerformanceTier(completionRate);
+  const tier = getPerformanceTier(completionRate, p);
   const firstName = profile.full_name.split(" ")[0];
 
   return (
@@ -138,10 +141,10 @@ export function ProfileClient({ profile, stats }: ProfileClientProps) {
       {/* ════════ HEADER ════════ */}
       <header>
         <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
-          My Profile
+          {p.heading}
         </h1>
         <p className="mt-1 text-sm text-slate-500">
-          Your performance and account information
+          {p.subtitle}
         </p>
       </header>
 
@@ -167,22 +170,22 @@ export function ProfileClient({ profile, stats }: ProfileClientProps) {
         <StatCard
           tone="blue"
           icon={<ClipboardList className="h-6 w-6" />}
-          label="Assigned"
-          subLabel="Total tasks"
+          label={p.stat_assigned}
+          subLabel={p.stat_assigned_sub}
           count={stats.total}
         />
         <StatCard
           tone="green"
           icon={<CheckCircle2 className="h-6 w-6" />}
-          label="Completed"
-          subLabel="Great work!"
+          label={p.stat_completed}
+          subLabel={p.stat_completed_sub}
           count={stats.completed}
         />
         <StatCard
           tone="orange"
           icon={<Hourglass className="h-6 w-6" />}
-          label="Pending"
-          subLabel="In progress"
+          label={p.stat_pending}
+          subLabel={p.stat_pending_sub}
           count={pending}
           pulse={pending > 0}
         />
@@ -205,7 +208,7 @@ export function ProfileClient({ profile, stats }: ProfileClientProps) {
         className="group flex w-full items-center justify-center gap-2 rounded-2xl border border-red-200 bg-white px-5 py-4 text-sm font-bold text-red-600 shadow-sm transition hover:bg-red-50 active:scale-[0.99] min-h-[56px]"
       >
         <LogOut className="h-4 w-4" />
-        Sign Out
+        {dict.common.actions.signOut}
       </button>
     </div>
   );
@@ -230,6 +233,8 @@ function ProfileHero({
   firstName: string;
   onAvatarClick: () => void;
 }) {
+  const dict = useDictionary();
+  const p = dict.staff.profile;
   return (
     <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
       {/* Soft brand banner */}
@@ -270,7 +275,7 @@ function ProfileHero({
             {profile.full_name}
           </h2>
           <p className="mt-1 text-sm text-slate-500">
-            Welcome back, {firstName} 👋
+            {p.welcome.replace("{name}", firstName)}
           </p>
           <div className="mt-3 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
             <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-slate-600">
@@ -288,7 +293,7 @@ function ProfileHero({
 
         {/* Hint */}
         <p className="mt-4 text-center text-[11px] text-slate-400 sm:text-left">
-          Tap the camera icon to change your photo
+          {p.photo_hint}
         </p>
       </div>
     </div>
@@ -369,6 +374,8 @@ function PerformanceCard({
   pending: number;
   tier: ReturnType<typeof getPerformanceTier>;
 }) {
+  const dict = useDictionary();
+  const p = dict.staff.profile;
   return (
     <div
       className={`relative overflow-hidden rounded-3xl border-2 ${tier.cardBorder} ${tier.cardBg} p-5 sm:p-6 shadow-sm`}
@@ -389,9 +396,9 @@ function PerformanceCard({
             </div>
             <div>
               <h3 className="text-base font-extrabold text-slate-900">
-                Performance
+              {p.performance}
               </h3>
-              <p className="text-[11px] text-slate-500">Task completion rate</p>
+              <p className="text-[11px] text-slate-500">{p.task_completion_rate}</p>
             </div>
           </div>
           <span
@@ -432,15 +439,15 @@ function PerformanceCard({
           <div className="flex items-center gap-4">
             <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-700">
               <span className="h-2 w-2 rounded-full bg-emerald-500" />
-              {completed} completed
+              {completed} {p.completed_count.replace("{count}", "").trim()}
             </span>
             <span className="inline-flex items-center gap-1.5 font-semibold text-slate-500">
               <span className="h-2 w-2 rounded-full bg-slate-300" />
-              {pending} remaining
+              {pending} {p.remaining_count.replace("{count}", "").trim()}
             </span>
           </div>
           <span className="text-[11px] font-medium text-slate-400">
-            this period
+            {p.this_period}
           </span>
         </div>
       </div>
@@ -453,31 +460,33 @@ function PerformanceCard({
    ══════════════════════════════════════════════════ */
 
 function AccountDetails({ profile }: { profile: Profile }) {
+  const dict = useDictionary();
+  const p = dict.staff.profile;
   return (
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-100 px-5 py-4">
         <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500">
-          Account Details
+          {p.account_details}
         </h2>
       </div>
       <div className="divide-y divide-slate-100">
         <DetailRow
           icon={<Mail className="h-4 w-4 text-blue-600" />}
           iconBg="bg-blue-50"
-          label="Email"
+          label={p.email}
           value={profile.email}
         />
         <DetailRow
           icon={<Shield className="h-4 w-4 text-violet-600" />}
           iconBg="bg-violet-50"
-          label="Role"
+          label={p.role}
           value={profile.role}
           valueClass="capitalize"
         />
         <DetailRow
           icon={<CalendarDays className="h-4 w-4 text-amber-600" />}
           iconBg="bg-amber-50"
-          label="Member Since"
+          label={p.member_since}
           value={format(new Date(profile.created_at), "MMMM d, yyyy")}
         />
       </div>
@@ -523,11 +532,11 @@ function DetailRow({
    PERFORMANCE TIER HELPER
    ══════════════════════════════════════════════════ */
 
-function getPerformanceTier(rate: number) {
+function getPerformanceTier(rate: number, p?: { tier_outstanding: string; tier_great: string; tier_good: string; tier_getting_started: string; encourage_outstanding: string; encourage_great: string; encourage_good: string; encourage_getting_started: string }) {
   if (rate >= 90) {
     return {
-      label: "Outstanding",
-      encouragement: "You're crushing it — keep up the amazing work! 🏆",
+      label: p?.tier_outstanding ?? "Outstanding",
+      encouragement: p?.encourage_outstanding ?? "You're crushing it — keep up the amazing work! 🏆",
       chipCls: "bg-emerald-50 text-emerald-700 ring-emerald-200",
       chipSolid: "bg-emerald-500 text-white",
       cardBg: "bg-gradient-to-br from-emerald-50 via-white to-teal-50",
@@ -540,8 +549,8 @@ function getPerformanceTier(rate: number) {
   }
   if (rate >= 70) {
     return {
-      label: "Great",
-      encouragement: "Great work — you're nearly there! 💪",
+      label: p?.tier_great ?? "Great",
+      encouragement: p?.encourage_great ?? "Great work — you're nearly there! 💪",
       chipCls: "bg-blue-50 text-blue-700 ring-blue-200",
       chipSolid: "bg-[#1E3A8A] text-white",
       cardBg: "bg-gradient-to-br from-indigo-50 via-white to-blue-50",
@@ -554,8 +563,8 @@ function getPerformanceTier(rate: number) {
   }
   if (rate >= 50) {
     return {
-      label: "Good",
-      encouragement: "Good progress — keep pushing! 🚀",
+      label: p?.tier_good ?? "Good",
+      encouragement: p?.encourage_good ?? "Good progress — keep pushing! 🚀",
       chipCls: "bg-amber-50 text-amber-800 ring-amber-200",
       chipSolid: "bg-amber-500 text-white",
       cardBg: "bg-gradient-to-br from-amber-50 via-white to-orange-50",
@@ -567,8 +576,8 @@ function getPerformanceTier(rate: number) {
     };
   }
   return {
-    label: "Getting Started",
-    encouragement: "Every task counts — you've got this! 💙",
+      label: p?.tier_getting_started ?? "Getting Started",
+      encouragement: p?.encourage_getting_started ?? "Every task counts — you've got this! 💙",
     chipCls: "bg-slate-100 text-slate-700 ring-slate-200",
     chipSolid: "bg-slate-700 text-white",
     cardBg: "bg-gradient-to-br from-slate-50 via-white to-slate-100",

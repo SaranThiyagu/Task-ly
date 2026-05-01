@@ -13,6 +13,7 @@ import {
   Filter,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { useDictionary } from "@/lib/i18n/dictionary-provider";
 import type { Task, TaskStatus } from "@/lib/types";
 import { PRIORITY_CONFIG, STATUS_CONFIG } from "@/lib/types";
 
@@ -44,6 +45,8 @@ const sectionConfig: Record<string, { dot: string; accent: string }> = {
 };
 
 export function MyTasksClient({ tasks }: MyTasksClientProps) {
+  const dict = useDictionary();
+  const t = dict.staff.tasks;
   const [activeFilter, setActiveFilter] = useState<"All" | "Overdue" | "In Progress" | "Pending">("All");
 
   const enriched = tasks.map((t) => ({
@@ -58,6 +61,19 @@ export function MyTasksClient({ tasks }: MyTasksClientProps) {
   const pending = enriched.filter(
     (t) => t.status === "pending" && t.displayStatus !== "overdue"
   );
+
+  const filterLabels: Record<string, string> = {
+    All: t.filter_all,
+    Overdue: t.filter_overdue,
+    "In Progress": t.filter_in_progress,
+    Pending: t.filter_pending,
+  };
+
+  const sectionLabels: Record<string, string> = {
+    Overdue: t.filter_overdue,
+    "In Progress": t.filter_in_progress,
+    Pending: t.filter_pending,
+  };
 
   const allSections = [
     { label: "Overdue", tasks: overdue },
@@ -74,16 +90,16 @@ export function MyTasksClient({ tasks }: MyTasksClientProps) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">My Tasks</h1>
+          <h1 className="text-xl font-bold text-slate-900">{t.heading}</h1>
           <p className="mt-0.5 text-sm text-slate-500">
-            {enriched.length} active task{enriched.length !== 1 ? "s" : ""}
+            {t.subtitle.replace("{count}", String(enriched.length))}
           </p>
         </div>
         <div className="flex items-center gap-2">
           {overdue.length > 0 && (
             <span className="flex items-center gap-1.5 rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700">
               <Zap className="h-3 w-3" />
-              {overdue.length} overdue
+              {overdue.length} {t.filter_overdue.toLowerCase()}
             </span>
           )}
         </div>
@@ -108,7 +124,7 @@ export function MyTasksClient({ tasks }: MyTasksClientProps) {
                   : "bg-slate-100 text-slate-600 hover:bg-slate-200"
               }`}
             >
-              {pill.label}
+              {filterLabels[pill.label] ?? pill.label}
               <span className="ml-1 opacity-70">{pill.count}</span>
             </button>
           ))}
@@ -120,10 +136,10 @@ export function MyTasksClient({ tasks }: MyTasksClientProps) {
             <Inbox className="h-7 w-7 text-slate-300" />
           </div>
           <h3 className="text-base font-semibold text-slate-900">
-            No active tasks
+            {t.empty_title}
           </h3>
           <p className="mt-1 text-sm text-slate-500 max-w-xs">
-            New tasks will appear here when your supervisor assigns them
+            {t.empty_body}
           </p>
         </div>
       ) : (
@@ -137,7 +153,7 @@ export function MyTasksClient({ tasks }: MyTasksClientProps) {
                   <h2
                     className={`text-xs font-semibold uppercase tracking-wider ${config.accent}`}
                   >
-                    {section.label}
+                    {sectionLabels[section.label] ?? section.label}
                   </h2>
                   <span className="text-xs text-slate-400">
                     {section.tasks.length}

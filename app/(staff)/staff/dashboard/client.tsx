@@ -17,6 +17,8 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { UserAvatar } from "@/components/ui/user-avatar";
+import { useDictionary } from "@/lib/i18n/dictionary-provider";
+import type { Dictionary } from "@/lib/i18n/get-dictionary";
 import type {
   Profile,
   Task,
@@ -42,11 +44,11 @@ type Bucket = "overdue" | "today" | "completed";
 
 /* ─── Helpers ─── */
 
-function getGreeting(): string {
+function getGreeting(dict: Dictionary["staff"]["dashboard"]): string {
   const hour = new Date().getHours();
-  if (hour < 12) return "Good morning";
-  if (hour < 17) return "Good afternoon";
-  return "Good evening";
+  if (hour < 12) return dict.greeting_morning;
+  if (hour < 17) return dict.greeting_afternoon;
+  return dict.greeting_evening;
 }
 
 function isOverdueTask(t: Task): boolean {
@@ -63,7 +65,7 @@ const priorityWeight: Record<TaskPriority, number> = {
   critical: 3,
 };
 
-const priorityLabel: Record<TaskPriority, string> = {
+const priorityLabelFallback: Record<TaskPriority, string> = {
   low: "Low",
   medium: "Medium",
   high: "High",
@@ -85,6 +87,8 @@ export function StaffDashboardClient({
   profile,
   tasks,
 }: StaffDashboardClientProps) {
+  const dict = useDictionary();
+  const d = dict.staff.dashboard;
   const [completedExpanded, setCompletedExpanded] = useState(false);
 
   /* Bucket tasks into Overdue / Due Today / Completed Today */
@@ -172,7 +176,7 @@ export function StaffDashboardClient({
               {format(new Date(), "EEEE, d MMM")}
             </p>
             <h1 className="truncate text-xl font-bold text-slate-900 sm:text-2xl">
-              {getGreeting()}, {firstName} 👋
+              {getGreeting(d)}, {firstName} 👋
             </h1>
           </div>
         </div>
@@ -180,7 +184,7 @@ export function StaffDashboardClient({
         {/* Notification bell with unread badge */}
         <button
           type="button"
-          aria-label="Notifications"
+          aria-label={d.notifications}
           className="relative inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 active:scale-95"
         >
           <Bell className="h-5 w-5" />
@@ -195,10 +199,10 @@ export function StaffDashboardClient({
       {/* Motivation tagline */}
       <p className="-mt-3 text-sm text-slate-500">
         {overdueCount > 0
-          ? "Let's clear those overdue tasks first 💪"
+          ? d.motivation_overdue
           : todayCount > 0
-            ? "Let's keep our SLA on track today"
-            : "Great work — you're all caught up! 🎉"}
+            ? d.motivation_today
+            : d.motivation_clear}
       </p>
 
       {/* ════════════════════════════════════════
@@ -206,26 +210,26 @@ export function StaffDashboardClient({
          ════════════════════════════════════════ */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatChip
-          label="Overdue"
+          label={d.stat_overdue}
           value={overdueCount}
           tone="red"
           icon={<AlertTriangle className="h-5 w-5" />}
           pulse={overdueCount > 0}
         />
         <StatChip
-          label="Due Today"
+          label={d.stat_due_today}
           value={todayCount}
           tone="orange"
           icon={<Clock className="h-5 w-5" />}
         />
         <StatChip
-          label="Completed"
+          label={d.stat_completed}
           value={completedCount}
           tone="green"
           icon={<CheckCircle2 className="h-5 w-5" />}
         />
         <StatChip
-          label="SLA"
+          label={d.stat_sla}
           value={`${slaPct}%`}
           tone={slaPct >= 80 ? "green" : slaPct >= 50 ? "orange" : "red"}
           icon={<TrendingUp className="h-5 w-5" />}
@@ -249,7 +253,7 @@ export function StaffDashboardClient({
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-white/70">
-              {isOverdueTask(nextTask) ? "Urgent · Start now" : "Start next task"}
+              {isOverdueTask(nextTask) ? d.cta_urgent : d.cta_start_next}
             </p>
             <p className="truncate text-base font-bold">{nextTask.title}</p>
             {nextTask.site_location && (
@@ -276,11 +280,10 @@ export function StaffDashboardClient({
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-bold text-red-900">
-              {overdueCount} overdue task{overdueCount > 1 ? "s" : ""} — action
-              needed
+              {d.alert_title.replace("{count}", String(overdueCount))}
             </p>
             <p className="mt-0.5 text-xs text-red-700">
-              Complete them now to avoid escalation to your supervisor.
+              {d.alert_body}
             </p>
           </div>
         </div>
@@ -294,13 +297,13 @@ export function StaffDashboardClient({
           <SectionHeader
             tone="red"
             emoji="🔴"
-            title="Overdue"
+            title={d.section_overdue}
             count={overdueCount}
-            subtitle="Tackle these first"
+            subtitle={d.section_overdue_sub}
           />
           <div className="space-y-3">
             {overdueTasks.map((t) => (
-              <TaskCard key={t.id} task={t} bucket="overdue" />
+              <TaskCard key={t.id} task={t} bucket="overdue" dict={d} />
             ))}
           </div>
         </section>
@@ -314,13 +317,13 @@ export function StaffDashboardClient({
           <SectionHeader
             tone="orange"
             emoji="🟡"
-            title="Due Today"
+            title={d.section_today}
             count={todayCount}
-            subtitle="Scheduled for today"
+            subtitle={d.section_today_sub}
           />
           <div className="space-y-3">
             {todayTasks.map((t) => (
-              <TaskCard key={t.id} task={t} bucket="today" />
+              <TaskCard key={t.id} task={t} bucket="today" dict={d} />
             ))}
           </div>
         </section>
@@ -339,7 +342,7 @@ export function StaffDashboardClient({
             <div className="flex items-center gap-2">
               <span className="text-base">🟢</span>
               <span className="text-sm font-bold text-emerald-800">
-                Completed Today
+                {d.section_completed}
               </span>
               <span className="inline-flex min-w-[22px] items-center justify-center rounded-full bg-emerald-500 px-2 py-0.5 text-[11px] font-bold text-white">
                 {completedCount}
@@ -370,10 +373,10 @@ export function StaffDashboardClient({
             <CheckCircle2 className="h-8 w-8 text-emerald-500" />
           </div>
           <h3 className="mt-4 text-base font-bold text-slate-900">
-            All clear, {firstName}!
+            {d.empty_title.replace("{name}", firstName)}
           </h3>
           <p className="mt-1 max-w-xs text-sm text-slate-500">
-            No tasks scheduled right now. Enjoy the breather. 🎉
+            {d.empty_body}
           </p>
         </div>
       )}
@@ -386,7 +389,7 @@ export function StaffDashboardClient({
           href="/staff/tasks"
           className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold text-[#1E3A8A] transition hover:bg-slate-100"
         >
-          View all tasks
+          {d.view_all}
           <ArrowRight className="h-4 w-4" />
         </Link>
       </div>
@@ -528,10 +531,13 @@ function SectionHeader({
 function TaskCard({
   task,
   bucket,
+  dict: d,
 }: {
   task: TaskWithReviews;
   bucket: Bucket;
+  dict: Dictionary["staff"]["dashboard"];
 }) {
+  const fullDict = useDictionary();
   const due = new Date(task.due_date);
   const isOverdue = bucket === "overdue";
   const isToday_ = bucket === "today";
@@ -561,7 +567,7 @@ function TaskCard({
         <span
           className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1 ${priorityChipClass[task.priority]}`}
         >
-          {priorityLabel[task.priority]}
+          {fullDict.common.priority[task.priority]}
         </span>
       </div>
 
@@ -587,7 +593,7 @@ function TaskCard({
       {isOverdue && (
         <div className="mt-3 flex items-center gap-1.5 rounded-lg bg-red-50 px-2.5 py-1.5 text-[11px] font-semibold text-red-700">
           <AlertTriangle className="h-3.5 w-3.5" />
-          Risk of escalation — start immediately
+          {d.risk_escalation}
         </div>
       )}
 
@@ -597,12 +603,12 @@ function TaskCard({
         className={`mt-4 flex h-14 w-full items-center justify-center gap-2 rounded-xl text-base font-bold transition active:scale-[0.98] ${buttonClasses}`}
       >
         <PlayCircle className="h-5 w-5" />
-        {inProgress ? "Continue Task" : "Start Task"}
+        {inProgress ? d.continue_task : d.start_task}
       </Link>
 
       {isToday_ && inProgress && (
         <p className="mt-2 text-center text-[11px] font-medium text-amber-700">
-          In progress
+          {d.in_progress}
         </p>
       )}
     </article>

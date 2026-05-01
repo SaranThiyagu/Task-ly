@@ -28,5 +28,12 @@ export default async function AllTasksPage() {
     `)
     .order("created_at", { ascending: false });
 
-  return <AllTasksClient tasks={tasks || []} />;
+  // Fetch staff list for the Create Task modal
+  const { data: staffList } = await supabase
+    .from("profiles")
+    .select("id, full_name, avatar_url")
+    .eq("role", "staff")
+    .order("full_name", { ascending: true });
+
+  return <AllTasksClient tasks={tasks || []} staffList={staffList || []} />;
 }

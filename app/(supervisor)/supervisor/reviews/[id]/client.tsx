@@ -133,7 +133,10 @@ export function ReviewDetailClient({
   /* ── Handlers ── */
   async function handleApprove(comment?: string) {
     const result = await approveTask(task.id, comment);
-    if (result.error) return toast.error(result.error);
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
     toast.success("Task approved successfully!");
     setApproveOpen(false);
     router.push("/supervisor/reviews");
@@ -141,7 +144,10 @@ export function ReviewDetailClient({
 
   async function handleReject(reason: string) {
     const result = await rejectTask(task.id, reason);
-    if (result.error) return toast.error(result.error);
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
     toast.success("Task rejected. Staff has been notified.");
     setRejectOpen(false);
     router.push("/supervisor/reviews");
@@ -151,16 +157,25 @@ export function ReviewDetailClient({
     /* Reuse rejectTask with a clarifying prefix to request resubmission */
     const finalReason = `Resubmission requested: ${reason}`;
     const result = await rejectTask(task.id, finalReason);
-    if (result.error) return toast.error(result.error);
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
     toast.success("Resubmission requested. Staff has been notified.");
     setResubmitOpen(false);
     router.push("/supervisor/reviews");
   }
 
   async function handleEscalate(reason: string) {
-    if (!managerId) return toast.error("No manager available for escalation");
+    if (!managerId) {
+      toast.error("No manager available for escalation");
+      return;
+    }
     const result = await escalateTask(task.id, reason, managerId);
-    if (result.error) return toast.error(result.error);
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
     toast.success("Task escalated to manager.");
     setEscalateOpen(false);
     router.push("/supervisor/reviews");

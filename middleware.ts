@@ -1,5 +1,13 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { match } from "@formatjs/intl-localematcher";
+import Negotiator from "negotiator";
+import {
+  locales,
+  defaultLocale,
+  isValidLocale,
+  LOCALE_COOKIE,
+} from "@/lib/i18n/locales";
 
 const PUBLIC_PATHS = [
   "/login",
@@ -15,6 +23,21 @@ const ROLE_ROUTES: Record<string, string> = {
 };
 
 export async function middleware(request: NextRequest) {
+  /* ── Locale detection ──
+     If the user doesn't have a NEXT_LOCALE cookie yet, detect from
+     Accept-Language and set the cookie on the response. */
+  const existingLocale = request.cookies.get(LOCALE_COOKIE)?.value;
+  let detectedLocale = defaultLocale;
+  if (!existingLocale || !isValidLocale(existingLocale)) {
+    try {
+      const headers = { "accept-language": request.headers.get("accept-language") || "" };
+      const languages = new Negotiator({ headers }).languages();
+      detectedLocale = match(languages, [...locales], defaultLocale) as typeof detectedLocale;
+    } catch {
+      detectedLocale = defaultLocale;
+    }
+  }
+
   let supabaseResponse = NextResponse.next({
     request,
   });
@@ -119,6 +142,15 @@ export async function middleware(request: NextRequest) {
         break;
       }
     }
+  }
+
+  /* ── Set locale cookie if not already present ── */
+  if (!existingLocale || !isValidLocale(existingLocale)) {
+    supabaseResponse.cookies.set(LOCALE_COOKIE, detectedLocale, {
+      path: "/",
+      maxAge: 60 * 60 * 24 * 365,
+      sameSite: "lax",
+    });
   }
 
   return supabaseResponse;

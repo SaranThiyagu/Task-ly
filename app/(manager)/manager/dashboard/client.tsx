@@ -30,10 +30,13 @@ import {
   ArrowUpRight,
   Building2,
   Users,
+  Plus,
 } from "lucide-react";
 import { MetricCard } from "@/components/ui/MetricCard";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { exportToCSV } from "@/lib/export/exportReport";
+import { CreateTaskModal } from "@/components/supervisor/CreateTaskModal";
+import type { StaffOption } from "@/components/supervisor/CreateTaskModal";
 import type { Profile } from "@/lib/types";
 
 /* ─────────────────────────────────
@@ -90,6 +93,18 @@ interface SitePerf {
   completionRate: number;
 }
 
+interface SupervisorStat {
+  id: string;
+  full_name: string;
+  avatar_url: string | null;
+  assigned: number;
+  completed: number;
+  overdue: number;
+  inProgress: number;
+  completionRate: number;
+  escalationCount: number;
+}
+
 interface RecentCompletion {
   id: string;
   title: string;
@@ -113,8 +128,10 @@ interface ManagerDashboardClientProps {
   kpis: KPIs;
   escalations: EscalationRow[];
   sitePerformance: SitePerf[];
+  supervisorBreakdown: SupervisorStat[];
   recentCompletions: RecentCompletion[];
   supervisors: Pick<Profile, "id" | "full_name" | "avatar_url">[];
+  staffList: StaffOption[];
   chartData: ChartDay[];
 }
 
@@ -132,13 +149,14 @@ export function ManagerDashboardClient({
   kpis,
   escalations: initialEscalations,
   sitePerformance,
+  supervisorBreakdown,
   recentCompletions,
-  supervisors,
+  staffList,
   chartData,
 }: ManagerDashboardClientProps) {
-  void supervisors;
   const router = useRouter();
   const [escalations, setEscalations] = useState(initialEscalations);
+  const [createOpen, setCreateOpen] = useState(false);
 
   // SSR guard for time-relative UI
   const [mounted, setMounted] = useState(false);
@@ -256,6 +274,14 @@ export function ManagerDashboardClient({
           </button>
           <button
             type="button"
+            onClick={() => setCreateOpen(true)}
+            className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-3.5 text-[12px] font-bold text-[#1E3A8A] shadow-sm transition hover:bg-indigo-100"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            New Task
+          </button>
+          <button
+            type="button"
             onClick={handleExport}
             className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-[#1E3A8A] px-3.5 text-[12px] font-bold text-white shadow-md shadow-indigo-500/30 transition hover:bg-[#172e6e] active:scale-[0.98]"
           >
@@ -264,6 +290,12 @@ export function ManagerDashboardClient({
           </button>
         </div>
       </header>
+
+      <CreateTaskModal
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        staffList={staffList}
+      />
 
       {/* ════════ ALERT BANNER ════════ */}
       {inTrouble && (
@@ -352,6 +384,7 @@ export function ManagerDashboardClient({
         escalationCount={kpis.escalationCount}
         overdueCount={kpis.overdueCount}
         pendingReviews={kpis.pendingReviews}
+        supervisorCount={supervisorBreakdown.length}
       />
 
       {/* ════════ TWO-COLUMN: ESCALATIONS + ACTIVITY ════════ */}
@@ -376,6 +409,9 @@ export function ManagerDashboardClient({
 
       {/* ════════ SITE PERFORMANCE ════════ */}
       <SitePerformanceTable rows={sortedSites} />
+
+      {/* ════════ SUPERVISOR BREAKDOWN ════════ */}
+      <SupervisorBreakdown supervisors={supervisorBreakdown} />
 
       {/* ════════ 7-DAY TREND ════════ */}
       <SevenDayTrend chartData={chartData} />
@@ -526,38 +562,50 @@ function QuickActions({
   escalationCount,
   overdueCount,
   pendingReviews,
+  supervisorCount,
 }: {
   escalationCount: number;
   overdueCount: number;
   pendingReviews: number;
+  supervisorCount: number;
 }) {
   const items = [
     {
       href: "/manager/escalations",
       icon: ShieldAlert,
       label: "View All Escalations",
-      sub: `${escalationCount} open`,
+      sub:
+        escalationCount > 0
+          ? `${escalationCount} open · needs action`
+          : "All clear",
       tone: "red" as const,
     },
     {
-      href: "/manager/tasks?status=overdue",
+      // Overdue tasks auto-escalate at 3h → manager resolves via escalations page
+      href: "/manager/escalations",
       icon: AlertOctagon,
       label: "Resolve Overdue",
-      sub: `${overdueCount} past due`,
+      sub:
+        overdueCount > 0
+          ? `${overdueCount} past due · auto-escalated`
+          : "No overdue tasks",
       tone: "amber" as const,
     },
     {
       href: "/manager/team",
       icon: Users,
       label: "Team Performance",
-      sub: `${pendingReviews} reviews pending`,
+      sub:
+        supervisorCount > 0
+          ? `${supervisorCount} supervisor${supervisorCount === 1 ? "" : "s"} · ${pendingReviews} reviews pending`
+          : "View all staff",
       tone: "blue" as const,
     },
     {
       href: "/manager/reports",
       icon: BarChart3,
       label: "Generate Report",
-      sub: "Reports & exports",
+      sub: "Filter · export · analyse",
       tone: "indigo" as const,
     },
   ];
@@ -590,7 +638,7 @@ function QuickActions({
         const Icon = it.icon;
         return (
           <Link
-            key={it.href}
+            key={it.label}
             href={it.href}
             className={`group flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm ring-1 transition hover:-translate-y-0.5 hover:shadow-md ${t.ring}`}
           >
@@ -1098,6 +1146,222 @@ function SevenDayTrend({ chartData }: { chartData: ChartDay[] }) {
           })}
         </div>
       </div>
+    </section>
+  );
+}
+
+/* ══════════════════════════════════════════════════
+   SUPERVISOR BREAKDOWN
+   ══════════════════════════════════════════════════ */
+
+function SupervisorBreakdown({
+  supervisors,
+}: {
+  supervisors: SupervisorStat[];
+}) {
+  // Sort: worst performers first (overdue desc → escalations desc → rate asc)
+  const sorted = [...supervisors].sort((a, b) => {
+    if (b.overdue !== a.overdue) return b.overdue - a.overdue;
+    if (b.escalationCount !== a.escalationCount)
+      return b.escalationCount - a.escalationCount;
+    return a.completionRate - b.completionRate;
+  });
+
+  return (
+    <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+      <header className="flex items-center justify-between gap-2 border-b border-slate-100 px-5 py-4">
+        <div className="flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-[#1E3A8A] shadow-sm">
+            <Users className="h-4 w-4 text-white" />
+          </div>
+          <div>
+            <h2 className="text-[14px] font-extrabold tracking-tight text-slate-900">
+              Supervisor Performance
+            </h2>
+            <p className="text-[11.5px] text-slate-500">
+              {supervisors.length === 0
+                ? "No supervisors found"
+                : `${supervisors.length} supervisor${supervisors.length === 1 ? "" : "s"} · task ownership by team lead`}
+            </p>
+          </div>
+        </div>
+        <Link
+          href="/manager/team?role=supervisor"
+          className="inline-flex items-center gap-1 text-[11.5px] font-bold text-[#1E3A8A] hover:underline"
+        >
+          View all
+          <ArrowRight className="h-3 w-3" />
+        </Link>
+      </header>
+
+      {supervisors.length === 0 ? (
+        <EmptyBlock
+          icon={<Users className="h-7 w-7 text-slate-300" />}
+          title="No supervisors yet"
+          message="Once supervisors are added to the system and create tasks, their performance will appear here."
+        />
+      ) : (
+        <>
+          {/* Desktop table */}
+          <div className="hidden overflow-x-auto md:block">
+            <table className="w-full min-w-[640px]">
+              <thead className="bg-slate-50/70">
+                <tr className="text-left">
+                  <th className="px-5 py-3 text-[10.5px] font-bold uppercase tracking-wider text-slate-500">
+                    Supervisor
+                  </th>
+                  <th className="px-4 py-3 text-center text-[10.5px] font-bold uppercase tracking-wider text-slate-500">
+                    Assigned
+                  </th>
+                  <th className="px-4 py-3 text-center text-[10.5px] font-bold uppercase tracking-wider text-slate-500">
+                    Completed
+                  </th>
+                  <th className="px-4 py-3 text-center text-[10.5px] font-bold uppercase tracking-wider text-slate-500">
+                    In Progress
+                  </th>
+                  <th className="px-4 py-3 text-center text-[10.5px] font-bold uppercase tracking-wider text-slate-500">
+                    Overdue
+                  </th>
+                  <th className="px-4 py-3 text-center text-[10.5px] font-bold uppercase tracking-wider text-slate-500">
+                    Escalations
+                  </th>
+                  <th className="px-4 py-3 text-[10.5px] font-bold uppercase tracking-wider text-slate-500">
+                    Completion Rate
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {sorted.map((sup) => {
+                  const atRisk = sup.overdue > 0 || sup.escalationCount > 0;
+                  const isStrong =
+                    sup.completionRate >= 90 && sup.overdue === 0;
+                  return (
+                    <tr
+                      key={sup.id}
+                      className={`transition hover:bg-slate-50/60 ${
+                        atRisk ? "bg-red-50/20" : isStrong ? "bg-emerald-50/20" : ""
+                      }`}
+                    >
+                      <td className="px-5 py-3">
+                        <div className="flex items-center gap-2.5">
+                          <UserAvatar
+                            name={sup.full_name}
+                            avatarUrl={sup.avatar_url}
+                            size="sm"
+                            className="h-8 w-8 shrink-0 rounded-xl ring-1 ring-slate-200"
+                          />
+                          <div className="min-w-0">
+                            <p className="truncate text-[13px] font-bold text-slate-900">
+                              {sup.full_name}
+                            </p>
+                            <span className="inline-flex items-center rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] font-bold text-indigo-700">
+                              Supervisor
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-center text-[13px] font-bold tabular-nums text-slate-700">
+                        {sup.assigned}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className="inline-flex items-center gap-1 text-[13px] font-bold tabular-nums text-emerald-700">
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          {sup.completed}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className="inline-flex items-center gap-1 text-[13px] font-bold tabular-nums text-blue-700">
+                          <Activity className="h-3.5 w-3.5" />
+                          {sup.inProgress}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {sup.overdue > 0 ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-red-500 px-2.5 py-0.5 text-[11px] font-extrabold text-white shadow-sm">
+                            <AlertTriangle className="h-3 w-3" />
+                            {sup.overdue}
+                          </span>
+                        ) : (
+                          <span className="text-[12.5px] font-bold tabular-nums text-slate-400">
+                            0
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {sup.escalationCount > 0 ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-500 px-2.5 py-0.5 text-[11px] font-extrabold text-white shadow-sm">
+                            <ShieldAlert className="h-3 w-3" />
+                            {sup.escalationCount}
+                          </span>
+                        ) : (
+                          <span className="text-[12.5px] font-bold tabular-nums text-slate-400">
+                            0
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <CompletionRateCell rate={sup.completionRate} />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile cards */}
+          <ul className="divide-y divide-slate-100 md:hidden">
+            {sorted.map((sup) => {
+              const atRisk = sup.overdue > 0 || sup.escalationCount > 0;
+              return (
+                <li
+                  key={sup.id}
+                  className={`px-4 py-4 ${atRisk ? "bg-red-50/20" : ""}`}
+                >
+                  <div className="flex items-start gap-3">
+                    <UserAvatar
+                      name={sup.full_name}
+                      avatarUrl={sup.avatar_url}
+                      size="sm"
+                      className="h-9 w-9 shrink-0 rounded-xl ring-1 ring-slate-200"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="truncate text-[13px] font-bold text-slate-900">
+                          {sup.full_name}
+                        </p>
+                        <CompletionRateCell rate={sup.completionRate} />
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
+                        <span className="inline-flex items-center gap-1 font-bold text-slate-600">
+                          <Activity className="h-3 w-3" />
+                          {sup.assigned} assigned
+                        </span>
+                        <span className="inline-flex items-center gap-1 font-bold text-emerald-700">
+                          <CheckCircle2 className="h-3 w-3" />
+                          {sup.completed} done
+                        </span>
+                        {sup.overdue > 0 && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 font-extrabold text-red-700">
+                            <AlertTriangle className="h-3 w-3" />
+                            {sup.overdue} overdue
+                          </span>
+                        )}
+                        {sup.escalationCount > 0 && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 font-extrabold text-amber-700">
+                            <ShieldAlert className="h-3 w-3" />
+                            {sup.escalationCount} escalations
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
     </section>
   );
 }
