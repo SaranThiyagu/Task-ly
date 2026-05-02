@@ -26,6 +26,7 @@ export default async function AllTasksPage() {
       *,
       assigned_to_profile:profiles!tasks_assigned_to_fkey(full_name, avatar_url)
     `)
+    .eq("org_id", profile.org_id)
     .order("created_at", { ascending: false });
 
   // Fetch staff list for the Create Task modal
@@ -33,6 +34,7 @@ export default async function AllTasksPage() {
     .from("profiles")
     .select("id, full_name, avatar_url")
     .eq("role", "staff")
+    .eq("org_id", profile.org_id)
     .order("full_name", { ascending: true });
 
   return <AllTasksClient tasks={tasks || []} staffList={staffList || []} />;

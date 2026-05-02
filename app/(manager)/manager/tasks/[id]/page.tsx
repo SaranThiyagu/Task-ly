@@ -68,6 +68,7 @@ export default async function ManagerTaskDetailPage({ params }: PageProps) {
        created_by_profile:profiles!tasks_created_by_fkey(id, full_name, avatar_url, role, email)`,
     )
     .eq("id", id)
+    .eq("org_id", profile.org_id)
     .single();
 
   if (!task) notFound();
@@ -81,6 +82,7 @@ export default async function ManagerTaskDetailPage({ params }: PageProps) {
        to_profile:profiles!escalations_escalated_to_fkey(id, full_name, avatar_url)`,
     )
     .eq("task_id", id)
+    .eq("org_id", profile.org_id)
     .order("escalated_at", { ascending: false });
 
   /* ── Fetch review ── */
@@ -91,6 +93,7 @@ export default async function ManagerTaskDetailPage({ params }: PageProps) {
        reviewer:profiles!task_reviews_reviewed_by_fkey(id, full_name, avatar_url)`,
     )
     .eq("task_id", id)
+    .eq("org_id", profile.org_id)
     .order("reviewed_at", { ascending: false });
 
   /* ── Fetch evidence ── */
@@ -98,6 +101,7 @@ export default async function ManagerTaskDetailPage({ params }: PageProps) {
     .from("task_evidence")
     .select("id, photo_url, notes, submitted_at")
     .eq("task_id", id)
+    .eq("org_id", profile.org_id)
     .order("submitted_at", { ascending: false });
 
   /* ── Derived values ── */

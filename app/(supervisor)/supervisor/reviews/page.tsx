@@ -22,7 +22,8 @@ export default async function PendingReviewsPage() {
   // Pending reviews = completed tasks with NO record in task_reviews
   const { data: reviewedTaskIds } = await supabase
     .from("task_reviews")
-    .select("task_id");
+    .select("task_id")
+    .eq("org_id", profile.org_id);
 
   const reviewedIds = new Set(
     (reviewedTaskIds || []).map((r: { task_id: string }) => r.task_id)
@@ -35,6 +36,7 @@ export default async function PendingReviewsPage() {
       assigned_to_profile:profiles!tasks_assigned_to_fkey(*)
     `)
     .eq("status", "completed")
+    .eq("org_id", profile.org_id)
     .order("completed_at", { ascending: false });
 
   const pendingReviewTasks = (completedTasks || []).filter(

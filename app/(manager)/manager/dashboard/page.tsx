@@ -33,12 +33,13 @@ export default async function ManagerDashboardPage() {
   const startOfPrevWeek = new Date(startOfWeek);
   startOfPrevWeek.setDate(startOfPrevWeek.getDate() - 7);
 
-  /* ── All tasks (slim) ── */
+  /* ── All tasks (slim) — scoped to org ── */
   const { data: tasks } = await supabase
     .from("tasks")
     .select(
       "id, title, status, priority, site_location, assigned_to, created_by, due_date, completed_at, created_at",
-    );
+    )
+    .eq("org_id", profile.org_id);
 
   const allTasks = tasks || [];
   const total = allTasks.length;
@@ -108,7 +109,8 @@ export default async function ManagerDashboardPage() {
   /* ── Pending reviews (completed tasks without a review) ── */
   const { data: reviewedRows } = await supabase
     .from("task_reviews")
-    .select("task_id");
+    .select("task_id")
+    .eq("org_id", profile.org_id);
   const reviewedSet = new Set(
     (reviewedRows || []).map((r: { task_id: string }) => r.task_id),
   );
@@ -126,6 +128,7 @@ export default async function ManagerDashboardPage() {
        to_profile:profiles!escalations_escalated_to_fkey(id, full_name, avatar_url)`,
     )
     .eq("is_resolved", false)
+    .eq("org_id", profile.org_id)
     .order("escalated_at", { ascending: false })
     .limit(20);
 
@@ -142,6 +145,7 @@ export default async function ManagerDashboardPage() {
     .from("profiles")
     .select("id, full_name, avatar_url")
     .eq("role", "supervisor")
+    .eq("org_id", profile.org_id)
     .order("full_name");
 
   /* ── Staff list (for Create Task modal) ── */
@@ -149,6 +153,7 @@ export default async function ManagerDashboardPage() {
     .from("profiles")
     .select("id, full_name, avatar_url")
     .eq("role", "staff")
+    .eq("org_id", profile.org_id)
     .order("full_name", { ascending: true });
 
   /* ── Supervisor performance breakdown ── */
@@ -238,6 +243,7 @@ export default async function ManagerDashboardPage() {
        assigned_to_profile:profiles!tasks_assigned_to_fkey(full_name, avatar_url)`,
     )
     .eq("status", "completed")
+    .eq("org_id", profile.org_id)
     .not("completed_at", "is", null)
     .order("completed_at", { ascending: false })
     .limit(5);

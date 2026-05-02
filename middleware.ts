@@ -10,6 +10,7 @@ import {
 } from "@/lib/i18n/locales";
 
 const PUBLIC_PATHS = [
+  "/",
   "/login",
   "/auth/callback",
   "/auth/confirm",
@@ -74,7 +75,7 @@ export async function middleware(request: NextRequest) {
 
   // Allow public paths
   const isPublicPath = PUBLIC_PATHS.some(
-    (path) => pathname === path || pathname.startsWith(path + "/")
+    (path) => path === "/" ? pathname === "/" : (pathname === path || pathname.startsWith(path + "/"))
   );
 
   // Redirect unauthenticated users.
@@ -100,12 +101,12 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Redirect authenticated users away from /login
-  if (user && pathname === "/login") {
+  // Redirect authenticated users away from /login or landing page
+  if (user && (pathname === "/login" || pathname === "/")) {
     // Fetch user role from profiles table
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role")
+      .select("role, org_id")
       .eq("id", user.id)
       .single();
 
@@ -124,7 +125,7 @@ export async function middleware(request: NextRequest) {
       ) {
         const { data: profile } = await supabase
           .from("profiles")
-          .select("role")
+          .select("role, org_id")
           .eq("id", user.id)
           .single();
 

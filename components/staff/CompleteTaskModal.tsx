@@ -74,9 +74,50 @@ export function CompleteTaskModal({
 
   const stepIndex = STEPS.findIndex((s) => s.key === step);
 
+  /* ── Image compression ── */
+  const MAX_OUTPUT_KB = 800;
+
+  async function compressImage(file: File): Promise<Blob> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        // Scale down if larger than 1920px on longest side
+        const maxDim = 1920;
+        const scale = Math.min(maxDim / img.width, maxDim / img.height, 1);
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return reject(new Error("Canvas not supported"));
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        // Try progressively lower quality to hit target size
+        let quality = 0.82;
+        const tryCompress = () => {
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) return reject(new Error("Compression failed"));
+              if (blob.size <= MAX_OUTPUT_KB * 1024 || quality <= 0.4) {
+                resolve(blob);
+              } else {
+                quality -= 0.1;
+                tryCompress();
+              }
+            },
+            "image/webp",
+            quality,
+          );
+        };
+        tryCompress();
+      };
+      img.onerror = () => reject(new Error("Failed to load image"));
+      img.src = URL.createObjectURL(file);
+    });
+  }
+
   /* ── File handling ── */
 
-  function handleFileSelect(selectedFile: File) {
+  async function handleFileSelect(selectedFile: File) {
     if (!selectedFile.type.startsWith("image/")) {
       toast.error("Please select an image file");
       return;
@@ -85,10 +126,17 @@ export function CompleteTaskModal({
       toast.error("File must be under 10MB");
       return;
     }
-    setFile(selectedFile);
-    const reader = new FileReader();
-    reader.onload = (e) => setPreview(e.target?.result as string);
-    reader.readAsDataURL(selectedFile);
+
+    try {
+      const compressed = await compressImage(selectedFile);
+      const compressedFile = new File([compressed], selectedFile.name.replace(/\.[^.]+$/, ".webp"), {
+        type: "image/webp",
+      });
+      setFile(compressedFile);
+      setPreview(URL.createObjectURL(compressed));
+    } catch {
+      toast.error("Failed to process image. Please try another photo.");
+    }
   }
 
   function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {

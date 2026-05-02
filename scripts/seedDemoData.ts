@@ -15,6 +15,13 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
+// ── Demo org ──
+const DEMO_ORG_SLUG = "cleanpro-demo";
+const DEMO_ORG = {
+  name: "CleanPro Demo",
+  slug: DEMO_ORG_SLUG,
+};
+
 // ── Demo users ──
 const DEMO_PASSWORD = "Demo@1234";
 
@@ -70,6 +77,40 @@ function daysAgo(d: number): string {
 async function seed() {
   console.log("🌱 Seeding TaskMe demo data...\n");
 
+  // 0. Create organization and get its ID
+  console.log("  Creating organization...");
+  const { data: orgData, error: orgError } = await supabase
+    .from("organizations")
+    .upsert(DEMO_ORG, { onConflict: "slug" })
+    .select("id")
+    .single();
+
+  if (orgError || !orgData) {
+    console.error(`    ✗ Organization: ${orgError?.message ?? "No data returned"}`);
+    process.exit(1);
+  }
+
+  const DEMO_ORG_ID = orgData.id;
+  console.log(`    ✓ Organization: ${DEMO_ORG.name} (${DEMO_ORG_ID})`);
+
+  // 0b. Create sites
+  console.log("\n  Creating sites...");
+  const siteIds: Record<string, string> = {};
+  for (const siteName of SITES) {
+    const { data: site, error: siteError } = await supabase
+      .from("sites")
+      .upsert({ org_id: DEMO_ORG_ID, name: siteName }, { onConflict: "org_id,name" })
+      .select("id")
+      .single();
+
+    if (siteError) {
+      console.error(`    ✗ Site "${siteName}": ${siteError.message}`);
+    } else {
+      siteIds[siteName] = site.id;
+      console.log(`    ✓ ${siteName}`);
+    }
+  }
+
   // 1. Create auth users + profiles
   const profileIds: Record<string, string> = {};
 
@@ -114,6 +155,7 @@ async function seed() {
         full_name: u.full_name,
         email: u.email,
         role: u.role,
+        org_id: DEMO_ORG_ID,
       },
       { onConflict: "id" }
     );
@@ -135,6 +177,25 @@ async function seed() {
     console.error("\n✗ Some users failed to create. Aborting task seeding.");
     process.exit(1);
   }
+
+  // 1b. Set reports_to hierarchy: Staff → Supervisor → Manager
+  console.log("\n  Setting up reporting hierarchy...");
+
+  // Supervisor reports to Manager
+  await supabase
+    .from("profiles")
+    .update({ reports_to: managerId })
+    .eq("id", supervisorId);
+  console.log("    ✓ Michael Lim → reports to → David Wong");
+
+  // Staff report to Supervisor
+  for (const staffId of [sarahId, ahmadId, priyaId]) {
+    await supabase
+      .from("profiles")
+      .update({ reports_to: supervisorId })
+      .eq("id", staffId);
+  }
+  console.log("    ✓ Sarah, Ahmad, Priya → report to → Michael Lim");
 
   // 2. Seed tasks
   console.log("\n  Creating tasks...");
@@ -333,7 +394,11 @@ async function seed() {
   for (const task of taskDefs) {
     const { data, error } = await supabase
       .from("tasks")
-      .insert(task)
+      .insert({
+        ...task,
+        org_id: DEMO_ORG_ID,
+        site_id: task.site_location ? siteIds[task.site_location] ?? null : null,
+      })
       .select("id")
       .single();
 
@@ -370,6 +435,7 @@ async function seed() {
       submitted_by: ev.submitted_by,
       photo_url: `https://placehold.co/800x600/e2e8f0/475569?text=Evidence+Photo`,
       notes: ev.notes,
+      org_id: DEMO_ORG_ID,
     });
     if (error) {
       console.error(`    ✗ Evidence: ${error.message}`);
@@ -409,6 +475,7 @@ async function seed() {
       submitted_by: ev.submitted_by,
       photo_url: `https://placehold.co/800x600/d1fae5/166534?text=Completed`,
       notes: ev.notes,
+      org_id: DEMO_ORG_ID,
     });
     if (error) {
       console.error(`    ✗ Evidence: ${error.message}`);
@@ -427,6 +494,7 @@ async function seed() {
       reviewed_by: supervisorId,
       action: "approved",
       comment: "Good work. Standards met.",
+      org_id: DEMO_ORG_ID,
     });
     if (error) {
       console.error(`    ✗ Review: ${error.message}`);
@@ -443,6 +511,7 @@ async function seed() {
       action: "rejected",
       comment:
         "Floor wax application incomplete — only 1 coat applied instead of 3. Please redo with full 3 coats.",
+      org_id: DEMO_ORG_ID,
     });
     if (error) {
       console.error(`    ✗ Rejection review: ${error.message}`);
@@ -475,6 +544,7 @@ async function seed() {
       escalated_to: managerId,
       reason: esc.reason,
       is_resolved: false,
+      org_id: DEMO_ORG_ID,
     });
     if (error) {
       console.error(`    ✗ Escalation: ${error.message}`);
@@ -484,12 +554,19 @@ async function seed() {
   }
 
   console.log("\n✅ Demo data seeded successfully!");
+  console.log("\n🏢 Organization: CleanPro Demo");
   console.log("\n📋 Demo Accounts:");
   console.log("  Manager:    david.wong@cleanpro-demo.com / Demo@1234");
   console.log("  Supervisor: michael.lim@cleanpro-demo.com / Demo@1234");
   console.log("  Staff:      sarah.tan@cleanpro-demo.com / Demo@1234");
   console.log("  Staff:      ahmad.bin@cleanpro-demo.com / Demo@1234");
   console.log("  Staff:      priya.nair@cleanpro-demo.com / Demo@1234");
+  console.log("\n📊 Hierarchy:");
+  console.log("  David Wong (Manager)");
+  console.log("    └─ Michael Lim (Supervisor)");
+  console.log("        ├─ Sarah Tan (Staff)");
+  console.log("        ├─ Ahmad Bin Yusof (Staff)");
+  console.log("        └─ Priya Nair (Staff)");
 }
 
 seed().catch((err) => {

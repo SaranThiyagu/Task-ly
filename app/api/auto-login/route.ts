@@ -42,7 +42,7 @@ async function performLogin(request: NextRequest) {
   if (user) {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role")
+      .select("role, org_id")
       .eq("id", user.id)
       .single();
 

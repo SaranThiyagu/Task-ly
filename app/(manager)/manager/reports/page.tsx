@@ -29,10 +29,12 @@ export default async function ManagerReportsPage() {
       .from("profiles")
       .select("id, full_name, role")
       .in("role", ["staff", "supervisor"])
+      .eq("org_id", profile.org_id)
       .order("full_name"),
     supabase
       .from("tasks")
       .select("site_location")
+      .eq("org_id", profile.org_id)
       .not("site_location", "is", null),
   ]);
 

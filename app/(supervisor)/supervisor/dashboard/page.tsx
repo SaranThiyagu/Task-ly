@@ -22,7 +22,8 @@ export default async function SupervisorDashboardPage() {
   // Pending reviews = completed tasks with NO record in task_reviews
   const { data: reviewedTaskIds } = await supabase
     .from("task_reviews")
-    .select("task_id");
+    .select("task_id")
+    .eq("org_id", profile.org_id);
 
   const reviewedIds = new Set(
     (reviewedTaskIds || []).map((r: { task_id: string }) => r.task_id)
@@ -35,6 +36,7 @@ export default async function SupervisorDashboardPage() {
       assigned_to_profile:profiles!tasks_assigned_to_fkey(*)
     `)
     .eq("status", "completed")
+    .eq("org_id", profile.org_id)
     .order("completed_at", { ascending: false });
 
   const pendingReviewTasks = (completedTasks || []).filter(
@@ -49,6 +51,7 @@ export default async function SupervisorDashboardPage() {
       assigned_to_profile:profiles!tasks_assigned_to_fkey(*)
     `)
     .in("status", ["pending", "in_progress"])
+    .eq("org_id", profile.org_id)
     .lt("due_date", new Date().toISOString())
     .order("due_date", { ascending: true });
 
@@ -60,13 +63,15 @@ export default async function SupervisorDashboardPage() {
     .from("tasks")
     .select("*", { count: "exact", head: true })
     .eq("status", "completed")
+    .eq("org_id", profile.org_id)
     .gte("completed_at", startOfDay.toISOString());
 
   // Fetch total active tasks
   const { count: activeTasksCount } = await supabase
     .from("tasks")
     .select("*", { count: "exact", head: true })
-    .in("status", ["pending", "in_progress"]);
+    .in("status", ["pending", "in_progress"])
+    .eq("org_id", profile.org_id);
 
   // Fetch recent activity (last 10 completions + evidence submissions + escalations)
   const { data: recentCompletions } = await supabase
@@ -76,6 +81,7 @@ export default async function SupervisorDashboardPage() {
       assigned_to_profile:profiles!tasks_assigned_to_fkey(full_name, avatar_url)
     `)
     .eq("status", "completed")
+    .eq("org_id", profile.org_id)
     .order("completed_at", { ascending: false })
     .limit(10);
 
@@ -87,6 +93,7 @@ export default async function SupervisorDashboardPage() {
       task:tasks!task_evidence_task_id_fkey(id, title, status),
       submitter:profiles!task_evidence_submitted_by_fkey(full_name, avatar_url)
     `)
+    .eq("org_id", profile.org_id)
     .order("submitted_at", { ascending: false })
     .limit(10);
 
@@ -98,6 +105,7 @@ export default async function SupervisorDashboardPage() {
       from_profile:profiles!escalations_escalated_from_fkey(full_name),
       to_profile:profiles!escalations_escalated_to_fkey(full_name)
     `)
+    .eq("org_id", profile.org_id)
     .order("escalated_at", { ascending: false })
     .limit(10);
 
@@ -106,6 +114,7 @@ export default async function SupervisorDashboardPage() {
     .from("profiles")
     .select("id, full_name")
     .eq("role", "staff")
+    .eq("org_id", profile.org_id)
     .order("full_name");
 
   // Fetch a manager for escalation target
@@ -113,6 +122,7 @@ export default async function SupervisorDashboardPage() {
     .from("profiles")
     .select("id, full_name")
     .eq("role", "manager")
+    .eq("org_id", profile.org_id)
     .limit(1);
 
   const managerId = managers?.[0]?.id || null;

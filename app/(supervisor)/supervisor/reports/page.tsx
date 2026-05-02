@@ -24,12 +24,14 @@ export default async function SupervisorReportsPage() {
     .from("profiles")
     .select("id, full_name")
     .eq("role", "staff")
+    .eq("org_id", profile.org_id)
     .order("full_name");
 
   // Fetch distinct site locations
   const { data: tasks } = await supabase
     .from("tasks")
     .select("site_location")
+    .eq("org_id", profile.org_id)
     .not("site_location", "is", null);
 
   const siteLocations = [

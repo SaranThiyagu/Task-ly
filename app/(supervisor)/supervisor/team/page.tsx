@@ -36,17 +36,20 @@ export default async function TeamPage() {
     .from("profiles")
     .select("id, full_name, email, avatar_url, role, created_at")
     .eq("role", "staff")
+    .eq("org_id", profile.org_id)
     .order("full_name");
 
   // All tasks (for stats). Limited columns for efficiency.
   const { data: taskRows } = await supabase
     .from("tasks")
-    .select("assigned_to, status, due_date, completed_at");
+    .select("assigned_to, status, due_date, completed_at")
+    .eq("org_id", profile.org_id);
 
   // Reviewed task ids — used to find "pending review" tasks per staff.
   const { data: reviewedRows } = await supabase
     .from("task_reviews")
-    .select("task_id");
+    .select("task_id")
+    .eq("org_id", profile.org_id);
   const reviewedSet = new Set(
     (reviewedRows || []).map((r: { task_id: string }) => r.task_id),
   );
@@ -56,7 +59,8 @@ export default async function TeamPage() {
   const { data: completedTaskRows } = await supabase
     .from("tasks")
     .select("id, assigned_to")
-    .eq("status", "completed");
+    .eq("status", "completed")
+    .eq("org_id", profile.org_id);
 
   const pendingReviewByStaff = (completedTaskRows || []).reduce<
     Record<string, number>

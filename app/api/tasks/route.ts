@@ -8,6 +8,7 @@ interface CreateTaskBody {
   description?: string;
   assigned_to: string;
   site_location?: string;
+  site_id?: string;
   priority?: TaskPriority;
   due_date: string;
 }
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
   // Only supervisors and managers may create tasks
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role, full_name")
+    .select("role, full_name, org_id")
     .eq("id", user.id)
     .single();
 
@@ -34,13 +35,27 @@ export async function POST(req: NextRequest) {
   }
 
   const body = (await req.json()) as CreateTaskBody;
-  const { title, description, assigned_to, site_location, priority, due_date } =
+  const { title, description, assigned_to, site_location, site_id, priority, due_date } =
     body;
 
   if (!title?.trim() || !assigned_to || !due_date) {
     return NextResponse.json(
       { error: "title, assigned_to and due_date are required" },
       { status: 400 }
+    );
+  }
+
+  // Validate assignee belongs to the same organization
+  const { data: assignee } = await supabase
+    .from("profiles")
+    .select("org_id")
+    .eq("id", assigned_to)
+    .single();
+
+  if (!assignee || assignee.org_id !== profile.org_id) {
+    return NextResponse.json(
+      { error: "Cannot assign tasks to users outside your organization" },
+      { status: 403 }
     );
   }
 
@@ -51,6 +66,8 @@ export async function POST(req: NextRequest) {
       description: description?.trim() ?? null,
       assigned_to,
       created_by: user.id,
+      org_id: profile.org_id,
+      site_id: site_id ?? null,
       site_location: site_location?.trim() ?? null,
       priority: priority ?? "medium",
       due_date,
