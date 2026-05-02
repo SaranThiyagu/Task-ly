@@ -158,6 +158,63 @@ html[lang="zh"] {
   }
 }
 
+/* ── Landing Page ── */
+.landing-page {
+  font-family: var(--font-dm-sans), 'DM Sans', sans-serif;
+  background: #f5f4f0;
+  color: #0a0a0f;
+}
+
+.font-syne {
+  font-family: var(--font-syne), 'Syne', sans-serif;
+}
+
+/* Hero animated blobs */
+@keyframes landing-float-a {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(30px, -20px) scale(1.05); }
+}
+@keyframes landing-float-b {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-20px, 30px) scale(0.97); }
+}
+.landing-blob-a { animation: landing-float-a 12s ease-in-out infinite; }
+.landing-blob-b { animation: landing-float-b 15s ease-in-out infinite; }
+.landing-blob-c { animation: landing-float-a 10s ease-in-out infinite reverse; }
+
+/* Pulse dot */
+@keyframes landing-pulse-dot {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0, 208, 132, 0.4); }
+  50% { box-shadow: 0 0 0 4px rgba(0, 208, 132, 0); }
+}
+.landing-pulse-dot { animation: landing-pulse-dot 2s ease-in-out infinite; }
+
+/* Scroll fade-up */
+.landing-fade-up {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.landing-fade-up.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Strike line effect */
+.landing-strike {
+  position: relative;
+  display: inline-block;
+}
+.landing-strike::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0;
+  top: 52%; height: 4px;
+  background: #ff5c35;
+  border-radius: 2px;
+  transform: rotate(-2deg);
+}
+
 /* Task detail — overdue pulse badge */
 .task-pulse-badge {
   animation: task-pulse 2s ease-in-out infinite;

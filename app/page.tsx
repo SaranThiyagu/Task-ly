@@ -1,36 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { login } from "./(auth)/login/actions";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import {
-  CheckSquare,
-  Camera,
-  ClipboardCheck,
-  AlertTriangle,
-  ArrowRight,
-  Loader2,
-  Users,
-  Shield,
-  BarChart3,
-  Bell,
-  Clock,
-  FileText,
-  MapPin,
-  ThumbsUp,
-  ThumbsDown,
-  Zap,
-  TrendingUp,
-  Download,
-  RefreshCw,
-  CheckCircle2,
-  XCircle,
-  Flame,
-  PhoneCall,
-  Star,
-} from "lucide-react";
 
 const DEMO_PASSWORD = "Demo@1234";
 
@@ -38,181 +10,76 @@ const demoUsers = [
   {
     role: "Staff",
     name: "Sarah Tan",
-    title: "Housekeeper",
+    title: "Floor Housekeeper",
     email: "sarah.tan@cleanpro-demo.com",
-    icon: Users,
-    color: "blue",
-    description: "View assigned tasks, complete with photo evidence, track your shift progress",
+    initials: "ST",
+    avatarBg: "#d4edda",
+    avatarColor: "#00a868",
+    badgeBg: "rgba(0,208,132,0.1)",
+    badgeColor: "#00a868",
+    btnStyle: "bg-[#ece9e2] text-[#0a0a0f] hover:bg-[#e0dcd4]",
+    description:
+      "See how staff receive task assignments, submit photo evidence, and track their own SLA compliance score — all from a simple mobile-first view.",
   },
   {
     role: "Supervisor",
     name: "Michael Lim",
     title: "Floor Supervisor",
     email: "michael.lim@cleanpro-demo.com",
-    icon: Shield,
-    color: "emerald",
-    description: "Review photo submissions, approve or reject, reassign overdue tasks",
+    initials: "ML",
+    avatarBg: "#d4e6f1",
+    avatarColor: "#3b6eff",
+    badgeBg: "rgba(59,110,255,0.1)",
+    badgeColor: "#3b6eff",
+    btnStyle: "bg-[#0a0a0f] text-white hover:bg-[#1a1a24]",
+    featured: true,
+    description:
+      "Review photo evidence, approve or reject with structured reasons, manage your team workload, and see real-time escalation alerts — without leaving your desk.",
   },
   {
     role: "Manager",
     name: "David Wong",
     title: "Operations Manager",
     email: "david.wong@cleanpro-demo.com",
-    icon: BarChart3,
-    color: "violet",
-    featured: true,
-    description: "Live KPI dashboards, escalation oversight, team performance & CSV reports",
+    initials: "DW",
+    avatarBg: "#f3d9fa",
+    avatarColor: "#9c36b5",
+    badgeBg: "rgba(156,54,181,0.1)",
+    badgeColor: "#9c36b5",
+    btnStyle: "bg-[#ece9e2] text-[#0a0a0f] hover:bg-[#e0dcd4]",
+    description:
+      "Executive KPIs, cross-site performance, escalation feed, 7-day trend charts, and one-click compliance reports. Everything that matters, in one view.",
   },
-] as const;
-
-const colorMap = {
-  blue: {
-    bg: "bg-blue-50",
-    border: "border-blue-200",
-    icon: "text-blue-600",
-    button: "bg-blue-600 hover:bg-blue-700",
-    badge: "bg-blue-100 text-blue-700",
-    glow: "shadow-blue-500/20",
-    ring: "ring-blue-500/40",
-    accent: "text-blue-400",
-    accentBg: "bg-blue-500/10 border-blue-500/20",
-  },
-  emerald: {
-    bg: "bg-emerald-50",
-    border: "border-emerald-200",
-    icon: "text-emerald-600",
-    button: "bg-emerald-600 hover:bg-emerald-700",
-    badge: "bg-emerald-100 text-emerald-700",
-    glow: "shadow-emerald-500/20",
-    ring: "ring-emerald-500/40",
-    accent: "text-emerald-400",
-    accentBg: "bg-emerald-500/10 border-emerald-500/20",
-  },
-  violet: {
-    bg: "bg-violet-50",
-    border: "border-violet-200",
-    icon: "text-violet-600",
-    button: "bg-violet-600 hover:bg-violet-700",
-    badge: "bg-violet-100 text-violet-700",
-    glow: "shadow-violet-500/20",
-    ring: "ring-violet-500/40",
-    accent: "text-violet-400",
-    accentBg: "bg-violet-500/10 border-violet-500/20",
-  },
-};
-
-/* ── Role feature definitions ── */
-const roleFeatures = [
-  {
-    role: "Staff",
-    color: "blue" as const,
-    icon: Users,
-    persona: "Sarah Tan — Housekeeper, Marina Bay Boutique Hotel",
-    painPoint: "\"I forget which rooms I've done. My supervisor calls me on WhatsApp to check. Sometimes tasks get missed and I get blamed.\"",
-    headline: "Every shift, crystal clear",
-    features: [
-      {
-        icon: Bell,
-        title: "Instant task notifications",
-        useCase: "Sarah's phone buzzes — Room 412 checkout just came in. One tap opens the task with priority, location, and instructions. No WhatsApp, no confusion.",
-      },
-      {
-        icon: Camera,
-        title: "Photo evidence on completion",
-        useCase: "Sarah cleans the room, photographs it, adds a note \"extra towels stocked\", and submits. The timestamp and photo are locked — she is protected if a guest disputes the clean.",
-      },
-      {
-        icon: Clock,
-        title: "Due time visibility",
-        useCase: "The task list shows Overdue (red), Due Soon (amber), and Completed (green). Sarah knows exactly what to prioritise without a supervisor walking the floor.",
-      },
-      {
-        icon: CheckCircle2,
-        title: "Rejection feedback loop",
-        useCase: "Supervisor rejects Room 304 — \"photo too dark, redo bathroom\". Sarah gets a push notification with the reason and resubmits in 5 minutes. No phone calls, no misunderstandings.",
-      },
-    ],
-    outcome: "Sarah completes 100% of her tasks on time. Her SLA score is visible on her profile. She builds a track record that management can see.",
-    stat: "↑ 40% fewer missed tasks in first month",
-  },
-  {
-    role: "Supervisor",
-    color: "emerald" as const,
-    icon: Shield,
-    persona: "Michael Lim — Floor Supervisor, 3 properties, 18 staff",
-    painPoint: "\"I manage 18 housekeepers across 3 floors. I physically walk every room to check. If I miss one, the GM calls me. I can't be everywhere.\"",
-    headline: "Manage 18 staff from one screen",
-    features: [
-      {
-        icon: ClipboardCheck,
-        title: "One-tap approval queue",
-        useCase: "Michael opens his review queue — 12 completed tasks with photos. He approves 10 with one tap each. Two photos are too dark — he rejects with quick-select reason \"Photo unclear\" and both staff are notified instantly.",
-      },
-      {
-        icon: MapPin,
-        title: "Overdue task radar",
-        useCase: "It is 2pm. Room 508 has been pending since 10am. TaskMe flags it as overdue and surfaces it at the top of Michael's dashboard. He reassigns it to an available housekeeper — 2 taps.",
-      },
-      {
-        icon: ThumbsUp,
-        title: "Approve / Reject / Escalate",
-        useCase: "A maintenance task has been overdue for 6 hours and the assigned staff member is not responding. Michael escalates to David Wong (Manager) with one tap — the escalation includes the full task history and timestamps.",
-      },
-      {
-        icon: TrendingUp,
-        title: "Team performance cards",
-        useCase: "Michael checks his team tab — Sarah has an 94% on-time rate this week. Two new staff members are at 61% and flagged at-risk. He knows who to coach before the GM asks.",
-      },
-    ],
-    outcome: "Michael stops physically walking floors to verify work. He reviews 80 task submissions per day in under 20 minutes from any device.",
-    stat: "↓ 70% reduction in supervisor floor-check time",
-  },
-  {
-    role: "Manager",
-    color: "violet" as const,
-    icon: BarChart3,
-    persona: "David Wong — Operations Manager, Far East Properties Group",
-    painPoint: "\"I find out about problems when a guest complains or a TripAdvisor review appears. By then it is too late. I have no real-time view of what is happening on the floors.\"",
-    headline: "Know before the guest complains",
-    features: [
-      {
-        icon: Zap,
-        title: "Live operations dashboard",
-        useCase: "David opens TaskMe at 9am with his coffee. The dashboard shows: 3 overdue tasks, 1 critical escalation in the F&B kitchen, completion rate 87% (down from 94% last week). He acts before the first guest interaction of the day.",
-      },
-      {
-        icon: AlertTriangle,
-        title: "Automatic escalation alerts",
-        useCase: "A kitchen cleaning task has been ignored for 6 hours. The escalation engine automatically flags it as CRITICAL and pushes an alert to David's phone at 7am — before service begins. Zero food safety risk reaches the floor.",
-      },
-      {
-        icon: BarChart3,
-        title: "Site performance comparison",
-        useCase: "David manages 3 properties. The site table shows Tanjong Pagar at 91% completion, Chinatown at 78%. He identifies the underperforming site, clicks through to see which team members are dragging the numbers, and calls the supervisor.",
-      },
-      {
-        icon: Download,
-        title: "One-click compliance reports",
-        useCase: "An MoH auditor asks for cleaning records from last month. David filters by site, date range, and status — clicks Export CSV. A full audit trail with timestamps, photos on record, and supervisor sign-offs is ready in 30 seconds.",
-      },
-    ],
-    outcome: "David stops managing by walking around and starts managing by exception. He only gets involved when the system tells him something actually needs his attention.",
-    stat: "↓ 60% fewer guest complaints in pilot hotels",
-  },
-];
-
-/* ── Stats bar ── */
-const stats = [
-  { value: "3 roles", label: "Staff · Supervisor · Manager" },
-  { value: "< 30s", label: "Task completion with photo" },
-  { value: "3-tier", label: "Automatic escalation engine" },
-  { value: "1 click", label: "Audit-ready CSV export" },
 ];
 
 export default function LandingPage() {
   const router = useRouter();
   const [loadingEmail, setLoadingEmail] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => setScrolled(window.scrollY > 40);
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  // Intersection observer for fade-up animations
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("visible");
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.12 }
+    );
+    document.querySelectorAll(".landing-fade-up").forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, []);
 
   async function handleDemoLogin(email: string) {
     setLoadingEmail(email);
@@ -228,330 +95,596 @@ export default function LandingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-900 to-slate-800">
-
-      {/* ── HEADER ── */}
-      <header className="sticky top-0 z-50 border-b border-white/10 bg-slate-900/80 backdrop-blur-md">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3.5 sm:px-6">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500 font-bold text-lg text-white">T</div>
-            <span className="text-xl font-bold tracking-tight text-white">TaskMe</span>
+    <div className="landing-page min-h-screen overflow-x-hidden">
+      {/* ── NAV ── */}
+      <nav
+        className={`fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 sm:px-12 h-16 bg-[#f5f4f0]/88 backdrop-blur-xl border-b border-black/10 transition-shadow ${
+          scrolled ? "shadow-[0_2px_20px_rgba(0,0,0,0.08)]" : ""
+        }`}
+      >
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 bg-[#0a0a0f] rounded-lg flex items-center justify-center">
+            <svg viewBox="0 0 16 16" fill="none" className="w-4 h-4">
+              <rect x="2" y="2" width="5" height="5" rx="1.5" fill="white" />
+              <rect x="9" y="2" width="5" height="5" rx="1.5" fill="white" opacity="0.5" />
+              <rect x="2" y="9" width="5" height="5" rx="1.5" fill="white" opacity="0.5" />
+              <rect x="9" y="9" width="5" height="5" rx="1.5" fill="white" />
+            </svg>
           </div>
-          <p className="hidden text-sm text-slate-400 sm:block">Compliance-Grade Task Management · Singapore</p>
-          <Button
-            variant="outline"
-            size="sm"
-            className="border-white/20 text-slate-300 hover:bg-white/10 hover:text-white"
-            onClick={() => router.push("/login")}
-          >
-            Sign In
-          </Button>
+          <span className="font-syne font-extrabold text-xl tracking-tight text-[#0a0a0f]">
+            TaskMe
+          </span>
         </div>
-      </header>
+        <div className="hidden md:flex gap-8">
+          <a href="#how-it-works" className="text-sm text-[#6b6b80] hover:text-[#0a0a0f] transition-colors">
+            How it works
+          </a>
+          <a href="#features" className="text-sm text-[#6b6b80] hover:text-[#0a0a0f] transition-colors">
+            Features
+          </a>
+          <a href="#industries" className="text-sm text-[#6b6b80] hover:text-[#0a0a0f] transition-colors">
+            Industries
+          </a>
+        </div>
+        <button
+          onClick={() => router.push("/login")}
+          className="bg-[#0a0a0f] text-white text-[13px] font-medium px-5 py-2.5 rounded-full hover:bg-[#1a1a24] transition-all hover:-translate-y-0.5"
+        >
+          Try Live Demo →
+        </button>
+      </nav>
 
       {/* ── HERO ── */}
-      <section className="mx-auto max-w-6xl px-4 pb-12 pt-16 text-center sm:px-6 sm:pb-16 sm:pt-24">
-        <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-blue-500/20 bg-blue-500/10 px-4 py-1.5 text-sm font-medium text-blue-400">
-          <Star className="h-3.5 w-3.5" />
-          Built for Singapore hospitality, facility management & aged care
-        </div>
-        <h1 className="text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl lg:text-6xl">
-          Stop Managing Tasks
-          <br />
-          <span className="text-blue-400">on WhatsApp</span>
-        </h1>
-        <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-slate-400 sm:text-xl">
-          TaskMe gives every role — Staff, Supervisor, Manager — exactly what they need.
-          Photo-verified completions, automatic escalation, and audit-ready reports. Out of the box.
-        </p>
-        <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-          <button
-            onClick={() => document.getElementById("demo-section")?.scrollIntoView({ behavior: "smooth" })}
-            className="inline-flex h-12 items-center gap-2 rounded-2xl bg-blue-600 px-6 text-[15px] font-bold text-white shadow-lg shadow-blue-500/30 transition hover:bg-blue-700"
-          >
-            Try Live Demo
-            <ArrowRight className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => document.getElementById("features-section")?.scrollIntoView({ behavior: "smooth" })}
-            className="inline-flex h-12 items-center gap-2 rounded-2xl border border-white/20 px-6 text-[15px] font-bold text-slate-300 transition hover:bg-white/10"
-          >
-            See How It Works
-          </button>
-        </div>
-      </section>
+      <section className="relative min-h-screen flex flex-col items-center justify-center text-center px-6 pt-28 pb-20 overflow-hidden">
+        {/* Background grid */}
+        <div
+          className="absolute inset-0 z-0"
+          style={{
+            backgroundImage:
+              "linear-gradient(rgba(10,10,15,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(10,10,15,0.04) 1px, transparent 1px)",
+            backgroundSize: "64px 64px",
+          }}
+        />
+        {/* Blobs */}
+        <div className="landing-blob-a absolute top-[10%] left-[-8%] w-[600px] h-[400px] rounded-full bg-[rgba(0,208,132,0.12)] blur-[80px] pointer-events-none" />
+        <div className="landing-blob-b absolute top-[5%] right-[-6%] w-[500px] h-[500px] rounded-full bg-[rgba(59,110,255,0.08)] blur-[80px] pointer-events-none" />
+        <div className="landing-blob-c absolute bottom-[15%] left-[30%] w-[400px] h-[300px] rounded-full bg-[rgba(245,200,66,0.10)] blur-[80px] pointer-events-none" />
 
-      {/* ── STATS BAR ── */}
-      <section className="border-y border-white/10 bg-white/5">
-        <div className="mx-auto grid max-w-6xl grid-cols-2 divide-x divide-white/10 px-4 sm:grid-cols-4 sm:px-6">
-          {stats.map((s) => (
-            <div key={s.label} className="flex flex-col items-center px-4 py-6 text-center">
-              <span className="text-2xl font-extrabold text-white sm:text-3xl">{s.value}</span>
-              <span className="mt-1 text-[12px] text-slate-500">{s.label}</span>
+        {/* Content */}
+        <div className="relative z-10 max-w-[860px]">
+          <div className="inline-flex items-center gap-1.5 bg-white border border-black/10 rounded-full px-3.5 py-1.5 text-xs font-medium text-[#6b6b80] mb-8 shadow-sm">
+            <span className="landing-pulse-dot w-1.5 h-1.5 rounded-full bg-[#00d084]" />
+            Built for Singapore hospitality, FM &amp; aged care
+          </div>
+
+          <h1 className="font-syne font-extrabold text-[clamp(44px,7vw,84px)] leading-[1.0] tracking-[-0.04em] text-[#0a0a0f] mb-2">
+            Stop Managing Tasks
+            <br />
+            <span className="landing-strike text-[#9898aa]">on WhatsApp</span>
+            <br />
+            <span className="text-[#00a868]">on TaskMe</span>
+          </h1>
+
+          <p className="text-lg font-light text-[#6b6b80] leading-relaxed max-w-[560px] mx-auto mt-6 mb-10">
+            Give every role — Staff, Supervisor, Manager — exactly what they need.
+            Photo-verified completions, automatic escalation, and MOM audit-ready reports.
+          </p>
+
+          <div className="flex items-center justify-center gap-3 flex-wrap">
+            <a
+              href="#demo"
+              className="inline-flex items-center gap-2 bg-[#0a0a0f] text-white text-[15px] font-medium px-7 py-3.5 rounded-full shadow-[0_4px_20px_rgba(10,10,15,0.18)] hover:-translate-y-0.5 hover:shadow-[0_8px_28px_rgba(10,10,15,0.22)] transition-all"
+            >
+              Try Live Demo <span className="text-lg">→</span>
+            </a>
+            <a
+              href="#how-it-works"
+              className="inline-flex items-center gap-2 text-[#0a0a0f] text-[15px] px-6 py-3.5 rounded-full border-[1.5px] border-black/[0.18] hover:bg-black/5 transition-colors"
+            >
+              ▷ See how it works
+            </a>
+          </div>
+        </div>
+
+        {/* Stats strip */}
+        <div className="relative z-10 mt-16 bg-white border border-black/10 rounded-2xl overflow-hidden shadow-[0_2px_16px_rgba(0,0,0,0.06)] max-w-[700px] w-full mx-auto grid grid-cols-2 sm:grid-cols-4">
+          {[
+            { val: "3", color: "text-[#00a868]", label: "Roles — Staff, Supervisor, Manager" },
+            { val: "<30s", color: "text-[#0a0a0f]", label: "Task creation & assignment" },
+            { val: "3-tier", color: "text-[#3b6eff]", label: "Automatic escalation engine" },
+            { val: "1-click", color: "text-[#ff5c35]", label: "Audit-ready CSV export" },
+          ].map((s, i) => (
+            <div key={i} className="py-6 px-4 text-center border-r border-black/10 last:border-r-0">
+              <div className={`font-syne text-[28px] font-bold tracking-tight leading-none mb-1 ${s.color}`}>
+                {s.val}
+              </div>
+              <div className="text-[12px] text-[#9898aa]">{s.label}</div>
             </div>
           ))}
         </div>
       </section>
 
-      {/* ── ROLE FEATURES ── */}
-      <section id="features-section" className="mx-auto max-w-6xl space-y-6 px-4 py-16 sm:space-y-8 sm:px-6 sm:py-24">
-        <div className="text-center">
-          <h2 className="text-3xl font-bold text-white sm:text-4xl">How TaskMe Works — Role by Role</h2>
-          <p className="mt-3 text-slate-400">Every role has a different problem. TaskMe solves each one specifically.</p>
-        </div>
-
-        {roleFeatures.map((roleData, idx) => {
-          const colors = colorMap[roleData.color];
-          const RoleIcon = roleData.icon;
-          const isReversed = idx % 2 === 1;
-
-          return (
-            <div
-              key={roleData.role}
-              className="overflow-hidden rounded-3xl border border-white/10 bg-white/5 backdrop-blur-sm"
-            >
-              {/* Role header */}
-              <div className={`flex flex-col gap-4 border-b border-white/10 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8`}>
-                <div className="flex items-center gap-4">
-                  <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl ${colors.accentBg} border`}>
-                    <RoleIcon className={`h-7 w-7 ${colors.accent}`} />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className={`rounded-full px-3 py-0.5 text-[11px] font-bold uppercase tracking-wider ${colors.badge}`}>
-                        {roleData.role}
-                      </span>
-                    </div>
-                    <h3 className="mt-1 text-xl font-extrabold text-white sm:text-2xl">{roleData.headline}</h3>
-                    <p className="text-[13px] text-slate-500">{roleData.persona}</p>
-                  </div>
+      {/* ── PAIN BANNER ── */}
+      <section className="bg-[#0a0a0f] py-0">
+        <div className="max-w-[1200px] mx-auto px-6 sm:px-12 py-16 sm:py-20 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+          <div>
+            <p className="text-[11px] font-medium tracking-[0.1em] uppercase text-white/40 mb-4">The problem</p>
+            <h2 className="font-syne text-[clamp(28px,4vw,40px)] font-bold tracking-tight text-white leading-[1.1] mb-6">
+              Your operations run on{" "}
+              <span className="text-[#00d084]">WhatsApp</span> — and that&apos;s costing you.
+            </h2>
+            <p className="text-base text-white/55 leading-relaxed font-light">
+              Tasks get lost. Supervisors discover overdue work hours later. Compliance audits mean
+              scrambling through chat history. TaskMe replaces all of it with a structured
+              accountability chain.
+            </p>
+          </div>
+          <div className="flex flex-col gap-4">
+            {[
+              { icon: "❌", color: "bg-[rgba(255,92,53,0.15)]", title: "30–40% of verbal tasks are forgotten", desc: "No digital record, no acknowledgement, no proof. Tasks disappear in group chats." },
+              { icon: "⏱", color: "bg-[rgba(255,92,53,0.15)]", title: "Delays discovered 4–8 hours later", desc: "Supervisors find overdue tasks during site walks — not in real time when it matters." },
+              { icon: "📋", color: "bg-[rgba(255,92,53,0.15)]", title: "2–3 hours weekly on manual reports", desc: "Supervisors compiling spreadsheets from memory instead of managing their team." },
+              { icon: "✅", color: "bg-[rgba(0,208,132,0.15)]", title: "TaskMe solves all three — from day one", desc: "100% task capture, 1-hour automatic escalation, one-click CSV export. No training required." },
+            ].map((item, i) => (
+              <div key={i} className="flex gap-3.5 items-start bg-white/[0.04] border border-white/[0.08] rounded-[10px] p-4 hover:bg-white/[0.07] transition-colors">
+                <div className={`w-8 h-8 rounded-lg ${item.color} flex items-center justify-center text-base shrink-0`}>
+                  {item.icon}
                 </div>
-                <div className={`rounded-2xl border ${colors.accentBg} px-4 py-2.5 text-[13px] font-bold ${colors.accent}`}>
-                  {roleData.stat}
+                <div>
+                  <h4 className="text-sm font-medium text-white mb-0.5">{item.title}</h4>
+                  <p className="text-[13px] text-white/45 font-light leading-snug">{item.desc}</p>
                 </div>
               </div>
+            ))}
+          </div>
+        </div>
+      </section>
 
-              <div className={`flex flex-col gap-0 lg:flex-row ${isReversed ? "lg:flex-row-reverse" : ""}`}>
-                {/* Pain point */}
-                <div className="flex flex-col justify-center gap-4 border-b border-white/10 p-6 sm:p-8 lg:w-[38%] lg:border-b-0 lg:border-r lg:border-white/10">
-                  <div>
-                    <p className="mb-2 text-[10.5px] font-bold uppercase tracking-widest text-slate-500">The Problem Today</p>
-                    <blockquote className="border-l-2 border-slate-600 pl-4 text-[15px] italic leading-relaxed text-slate-400">
-                      {roleData.painPoint}
-                    </blockquote>
-                  </div>
-                  <div className={`rounded-2xl border ${colors.accentBg} p-4`}>
-                    <p className="text-[10.5px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">The Outcome with TaskMe</p>
-                    <p className="text-[13.5px] leading-relaxed text-slate-300">{roleData.outcome}</p>
-                  </div>
-                </div>
+      {/* ── HOW IT WORKS — CHAIN ── */}
+      <section id="how-it-works" className="bg-white border-y border-black/10 py-20 sm:py-24">
+        <div className="max-w-[1200px] mx-auto px-6 sm:px-12">
+          <p className="text-[11px] font-semibold tracking-[0.12em] uppercase text-[#9898aa] mb-3">
+            The accountability chain
+          </p>
+          <h2 className="font-syne text-[clamp(32px,4vw,52px)] font-bold tracking-tight text-[#0a0a0f] leading-[1.05] mb-14">
+            From task creation to audit trail
+            <br />— every step tracked automatically
+          </h2>
 
-                {/* Features */}
-                <div className="grid flex-1 grid-cols-1 gap-0 divide-y divide-white/5 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
-                  {roleData.features.map((feature, fIdx) => {
-                    const FIcon = feature.icon;
-                    return (
-                      <div
-                        key={feature.title}
-                        className={`p-5 sm:p-6 ${fIdx >= 2 ? "border-t border-white/5" : ""}`}
-                      >
-                        <div className={`mb-3 flex h-9 w-9 items-center justify-center rounded-xl ${colors.accentBg} border`}>
-                          <FIcon className={`h-4.5 w-4.5 ${colors.accent}`} />
-                        </div>
-                        <h4 className="mb-2 text-[14px] font-bold text-white">{feature.title}</h4>
-                        <p className="text-[12.5px] leading-relaxed text-slate-400">{feature.useCase}</p>
-                      </div>
-                    );
-                  })}
+          <div className="relative grid grid-cols-1 sm:grid-cols-5 gap-6 sm:gap-0">
+            {/* Connector line */}
+            <div className="hidden sm:block absolute top-7 left-10 right-10 h-px bg-gradient-to-r from-[#00d084]/25 via-[#3b6eff]/25 to-[#ff5c35]/25" />
+            {[
+              { icon: "📋", title: "Task Created", desc: "Supervisor assigns with priority, due date & site location", active: true },
+              { icon: "🔔", title: "Staff Notified", desc: "Instant push notification to staff device, even when app is closed", active: false },
+              { icon: "📸", title: "Photo Submitted", desc: "Staff completes with mandatory timestamped photo evidence", active: false },
+              { icon: "✅", title: "Supervisor Reviews", desc: "Approve, reject with reason, reassign, or escalate", active: false },
+              { icon: "📊", title: "Audit Trail", desc: "Every action timestamped, attributed, exportable for compliance", active: false },
+            ].map((step, i) => (
+              <div key={i} className="relative z-10 flex flex-row sm:flex-col items-start sm:items-center gap-4 sm:text-center">
+                <div
+                  className={`w-14 h-14 rounded-full border flex items-center justify-center text-xl shrink-0 ${
+                    step.active
+                      ? "bg-[#0a0a0f] border-[#0a0a0f] shadow-[0_0_0_6px_white,0_0_0_7px_rgba(0,208,132,0.3)]"
+                      : "bg-white border-black/10 shadow-[0_0_0_6px_white]"
+                  }`}
+                >
+                  {step.icon}
                 </div>
+                <div>
+                  <h4 className="text-[13px] font-medium text-[#0a0a0f] mb-1">{step.title}</h4>
+                  <p className="text-[12px] text-[#9898aa] font-light leading-snug">{step.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── ROLES SECTION ── */}
+      <section className="max-w-[1200px] mx-auto px-6 sm:px-12 py-20 sm:py-24">
+        <p className="text-[11px] font-semibold tracking-[0.12em] uppercase text-[#9898aa] mb-3">
+          Role-based design
+        </p>
+        <h2 className="font-syne text-[clamp(32px,4vw,52px)] font-bold tracking-tight text-[#0a0a0f] leading-[1.05] mb-4">
+          Every role sees exactly
+          <br />what they need
+        </h2>
+        <p className="text-[17px] font-light text-[#6b6b80] leading-relaxed max-w-[520px]">
+          No noise, no overload. Each dashboard is purpose-built for the decisions that role makes.
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-14">
+          {/* Staff card */}
+          <div className="landing-fade-up bg-white border border-black/10 rounded-2xl p-8 hover:-translate-y-1 hover:shadow-[0_12px_40px_rgba(0,0,0,0.08)] transition-all">
+            <span className="inline-block text-[11px] font-semibold tracking-[0.08em] uppercase px-2.5 py-1 rounded-full bg-[rgba(0,208,132,0.1)] text-[#00a868] mb-5">Staff</span>
+            <h3 className="font-syne text-[22px] font-bold tracking-tight mb-2.5">Every shift, crystal clear</h3>
+            <p className="text-sm text-[#6b6b80] font-light leading-relaxed">Staff see only their tasks — sorted by priority with one-tap completion and photo upload. No training required.</p>
+            <div className="mt-6 flex flex-col gap-2.5">
+              {["Prioritised task list — overdue first", "Photo-verified 3-step completion", "Real-time rejection & feedback loop", "Own SLA compliance score"].map((f) => (
+                <div key={f} className="flex items-center gap-2.5 text-[13px] text-[#6b6b80]">
+                  <span className="w-5 h-5 rounded-md bg-[rgba(0,208,132,0.1)] text-[#00a868] flex items-center justify-center text-[11px] shrink-0">✓</span>
+                  {f}
+                </div>
+              ))}
+            </div>
+            <div className="mt-7 pt-5 border-t border-black/10 flex items-baseline gap-1.5">
+              <span className="font-syne text-[28px] font-bold tracking-tight text-[#00a868]">&lt;15min</span>
+              <span className="text-[12px] text-[#9898aa] font-light">average onboarding time for new staff</span>
+            </div>
+          </div>
+
+          {/* Supervisor card — featured */}
+          <div className="landing-fade-up bg-[#0a0a0f] border border-[#0a0a0f] rounded-2xl p-8 text-white relative overflow-hidden hover:-translate-y-1 hover:shadow-[0_12px_40px_rgba(0,0,0,0.2)] transition-all">
+            <div className="absolute -bottom-8 -right-8 w-[120px] h-[120px] rounded-full bg-[rgba(0,208,132,0.08)] pointer-events-none" />
+            <span className="inline-block text-[11px] font-semibold tracking-[0.08em] uppercase px-2.5 py-1 rounded-full bg-[rgba(59,110,255,0.1)] text-[#3b6eff] mb-5">Supervisor</span>
+            <h3 className="font-syne text-[22px] font-bold tracking-tight mb-2.5">Manage 18 staff from one screen</h3>
+            <p className="text-sm text-white/55 font-light leading-relaxed">Pending reviews, overdue alerts, real-time activity feed, and AI-powered insight cards — all visible without leaving the dashboard.</p>
+            <div className="mt-6 flex flex-col gap-2.5">
+              {["One-tap approve / reject with reasons", "Overdue task radar — auto-flagged", "Per-staff performance heuristics", "Team workload balancing view"].map((f) => (
+                <div key={f} className="flex items-center gap-2.5 text-[13px] text-white/65">
+                  <span className="w-5 h-5 rounded-md bg-white/10 text-white/70 flex items-center justify-center text-[11px] shrink-0">✓</span>
+                  {f}
+                </div>
+              ))}
+            </div>
+            <div className="mt-7 pt-5 border-t border-white/[0.12] flex items-baseline gap-1.5">
+              <span className="font-syne text-[28px] font-bold tracking-tight text-[#00d084]">70%</span>
+              <span className="text-[12px] text-white/40 font-light">reduction in supervisor floor check time</span>
+            </div>
+          </div>
+
+          {/* Manager card */}
+          <div className="landing-fade-up bg-white border border-black/10 rounded-2xl p-8 hover:-translate-y-1 hover:shadow-[0_12px_40px_rgba(0,0,0,0.08)] transition-all">
+            <span className="inline-block text-[11px] font-semibold tracking-[0.08em] uppercase px-2.5 py-1 rounded-full bg-[rgba(156,54,181,0.1)] text-[#9c36b5] mb-5">Manager</span>
+            <h3 className="font-syne text-[22px] font-bold tracking-tight mb-2.5">Know before the guest complains</h3>
+            <p className="text-sm text-[#6b6b80] font-light leading-relaxed">Executive KPIs, escalation feed, site-by-site breakdown, and 7-day trend charts. Resolve critical issues directly from the dashboard.</p>
+            <div className="mt-6 flex flex-col gap-2.5">
+              {["Live operations alert banner", "Cross-site performance table", "One-click compliance reports", "Top performers & at-risk spotlight"].map((f) => (
+                <div key={f} className="flex items-center gap-2.5 text-[13px] text-[#6b6b80]">
+                  <span className="w-5 h-5 rounded-md bg-[rgba(0,208,132,0.1)] text-[#00a868] flex items-center justify-center text-[11px] shrink-0">✓</span>
+                  {f}
+                </div>
+              ))}
+            </div>
+            <div className="mt-7 pt-5 border-t border-black/10 flex items-baseline gap-1.5">
+              <span className="font-syne text-[28px] font-bold tracking-tight text-[#00a868]">40%</span>
+              <span className="text-[12px] text-[#9898aa] font-light">fewer guest complaints in pilot hotels</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── FEATURES BENTO ── */}
+      <section id="features" className="max-w-[1200px] mx-auto px-6 sm:px-12 pb-20 sm:pb-24">
+        <p className="text-[11px] font-semibold tracking-[0.12em] uppercase text-[#9898aa] mb-3">
+          Core features
+        </p>
+        <h2 className="font-syne text-[clamp(32px,4vw,52px)] font-bold tracking-tight text-[#0a0a0f] leading-[1.05] mb-14">
+          Built for field operations,
+          <br />not project management
+        </h2>
+
+        <div className="grid grid-cols-12 gap-3">
+          {/* Escalation engine */}
+          <div className="landing-fade-up col-span-12 md:col-span-5 bg-white border border-black/10 rounded-2xl p-7 hover:-translate-y-0.5 hover:shadow-[0_8px_32px_rgba(0,0,0,0.07)] transition-all">
+            <span className="inline-block text-[10px] font-semibold tracking-[0.1em] uppercase px-2 py-0.5 rounded-full bg-[rgba(255,92,53,0.1)] text-[#ff5c35] mb-4">Escalation engine</span>
+            <h3 className="font-syne text-xl font-bold tracking-tight text-[#0a0a0f] mb-2">Automatic 3-tier escalation</h3>
+            <p className="text-[13px] text-[#6b6b80] font-light leading-relaxed">Zero human effort required. The engine detects delays and graduated response kicks in automatically.</p>
+            <div className="mt-5 flex flex-col gap-0">
+              {[
+                { time: "+1h", color: "#ff5c35", bg: "rgba(255,92,53,0.04)", text: "Staff notified — \"Task Overdue ⚠️\"", tier: "Tier 1", tierBg: "rgba(255,92,53,0.1)" },
+                { time: "+3h", color: "#3b6eff", bg: "rgba(59,110,255,0.04)", text: "Manager escalation created & notified", tier: "Tier 2", tierBg: "rgba(59,110,255,0.1)" },
+                { time: "+6h", color: "#c0392b", bg: "rgba(255,92,53,0.08)", text: "Priority → CRITICAL. Both alerted", tier: "Tier 3", tierBg: "rgba(192,57,43,0.12)" },
+              ].map((row, i) => (
+                <div key={i} className="flex items-center gap-3 px-3 py-2.5 rounded-lg" style={{ background: row.bg }}>
+                  <span className="font-syne text-[13px] font-bold tracking-tight min-w-[44px] text-right" style={{ color: row.color }}>{row.time}</span>
+                  <div className="w-2 h-2 rounded-full shrink-0" style={{ background: row.color }} />
+                  <span className="text-[12px] text-[#6b6b80] font-light flex-1">{row.text}</span>
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full ml-auto" style={{ background: row.tierBg, color: row.color }}>{row.tier}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Photo evidence */}
+          <div className="landing-fade-up col-span-12 md:col-span-7 bg-white border border-black/10 rounded-2xl p-7 hover:-translate-y-0.5 hover:shadow-[0_8px_32px_rgba(0,0,0,0.07)] transition-all">
+            <span className="inline-block text-[10px] font-semibold tracking-[0.1em] uppercase px-2 py-0.5 rounded-full bg-[rgba(0,208,132,0.1)] text-[#00a868] mb-4">Photo verification</span>
+            <h3 className="font-syne text-xl font-bold tracking-tight text-[#0a0a0f] mb-2">Irrefutable proof of work</h3>
+            <p className="text-[13px] text-[#6b6b80] font-light leading-relaxed">Every task completion requires timestamped photo evidence — before/after shots supported. An immutable audit trail for every MOM or client inspection.</p>
+            <div className="mt-5 bg-[#ece9e2] rounded-[10px] p-4 flex flex-col gap-2">
+              {[
+                { emoji: "🛏", bg: "#d4edda", name: "Room 412 — Turnover complete", meta: "Sarah T. · Today 09:42 AM", status: "Approved", statusClass: "bg-[rgba(0,208,132,0.12)] text-[#00a868]" },
+                { emoji: "🧹", bg: "#d4e6f1", name: "Lobby deep clean — B1 level", meta: "Michael L. · Today 10:15 AM", status: "In Review", statusClass: "bg-[rgba(59,110,255,0.1)] text-[#3b6eff]" },
+                { emoji: "🔧", bg: "#fef3cd", name: "HVAC filter inspection", meta: "David W. · Today 11:00 AM", status: "Approved", statusClass: "bg-[rgba(0,208,132,0.12)] text-[#00a868]" },
+              ].map((item, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <div className="w-[52px] h-[52px] rounded-lg flex items-center justify-center text-[22px] shrink-0" style={{ background: item.bg }}>{item.emoji}</div>
+                  <div className="flex-1 min-w-0">
+                    <h5 className="text-[12px] font-medium text-[#0a0a0f] mb-0.5 truncate">{item.name}</h5>
+                    <p className="text-[11px] text-[#9898aa]">{item.meta}</p>
+                  </div>
+                  <span className={`text-[10px] font-semibold tracking-wide px-2 py-0.5 rounded-full whitespace-nowrap ${item.statusClass}`}>{item.status}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Dashboard mock */}
+          <div className="landing-fade-up col-span-12 md:col-span-8 bg-white border border-black/10 rounded-2xl p-7 hover:-translate-y-0.5 hover:shadow-[0_8px_32px_rgba(0,0,0,0.07)] transition-all">
+            <span className="inline-block text-[10px] font-semibold tracking-[0.1em] uppercase px-2 py-0.5 rounded-full bg-[rgba(59,110,255,0.1)] text-[#3b6eff] mb-4">Manager dashboard</span>
+            <h3 className="font-syne text-xl font-bold tracking-tight text-[#0a0a0f] mb-2">Live operations overview</h3>
+            <p className="text-[13px] text-[#6b6b80] font-light leading-relaxed">Executive KPIs, site-by-site risk breakdown, and 7-day trend charts. Real-time WebSocket updates — no refresh needed.</p>
+            <div className="mt-5 bg-[#0a0a0f] rounded-[10px] p-4">
+              <div className="flex gap-2 mb-3">
+                {[
+                  { val: "142", label: "Tasks today", color: "#fff" },
+                  { val: "89%", label: "Completion", color: "#00d084" },
+                  { val: "7", label: "Overdue", color: "#ff5c35" },
+                  { val: "2", label: "Escalations", color: "#3b6eff" },
+                ].map((kpi, i) => (
+                  <div key={i} className="flex-1 bg-white/[0.06] rounded-lg p-2.5 text-center">
+                    <div className="font-syne text-lg font-bold tracking-tight" style={{ color: kpi.color }}>{kpi.val}</div>
+                    <div className="text-[10px] text-white/35 mt-0.5">{kpi.label}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="flex flex-col gap-1.5">
+                {[
+                  { label: "Site A", width: "92%", color: "#00d084" },
+                  { label: "Site B", width: "74%", color: "#3b6eff" },
+                  { label: "Site C", width: "61%", color: "#ff5c35" },
+                  { label: "Site D", width: "88%", color: "#00d084" },
+                ].map((bar, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="text-[10px] text-white/40 w-[52px] text-right shrink-0">{bar.label}</span>
+                    <div className="flex-1 h-1.5 bg-white/[0.08] rounded-full overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width: bar.width, background: bar.color }} />
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
-          );
-        })}
-      </section>
-
-      {/* ── HOW IT FLOWS ── */}
-      <section className="border-y border-white/10 bg-white/[0.02] py-16 sm:py-20">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <div className="mb-12 text-center">
-            <h2 className="text-3xl font-bold text-white sm:text-4xl">The Complete Accountability Chain</h2>
-            <p className="mt-3 text-slate-400">From task creation to audit trail — every step is tracked, timestamped, and escalated automatically.</p>
           </div>
-          <div className="relative flex flex-col items-center gap-0 sm:flex-row sm:items-start sm:justify-between">
-            {/* Connector line */}
-            <div className="absolute left-1/2 top-8 hidden h-0.5 w-[calc(100%-80px)] -translate-x-1/2 bg-gradient-to-r from-blue-500/30 via-emerald-500/30 to-violet-500/30 sm:block" />
 
-            {[
-              { step: "1", icon: FileText, label: "Task Created", sub: "Supervisor / Manager assigns task with priority, location, due time", color: "blue" },
-              { step: "2", icon: Bell, label: "Staff Notified", sub: "Push notification to staff phone in under 1 second", color: "blue" },
-              { step: "3", icon: Camera, label: "Photo Submitted", sub: "Staff completes task and uploads mandatory photo evidence", color: "blue" },
-              { step: "4", icon: ClipboardCheck, label: "Supervisor Reviews", sub: "Approve, reject with reason, or escalate to manager", color: "emerald" },
-              { step: "5", icon: AlertTriangle, label: "Auto-Escalation", sub: "Overdue 1h → flagged. 3h → escalated. 6h → CRITICAL alert", color: "emerald" },
-              { step: "6", icon: CheckSquare, label: "Audit Trail", sub: "Full history: timestamps, photos, reviews, decisions — CSV export ready", color: "violet" },
-            ].map((s) => {
-              const SIcon = s.icon;
-              const c = colorMap[s.color as keyof typeof colorMap];
-              return (
-                <div key={s.step} className="relative z-10 flex flex-row items-start gap-4 sm:w-[16%] sm:flex-col sm:items-center sm:text-center">
-                  <div className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border ${c.accentBg}`}>
-                    <SIcon className={`h-7 w-7 ${c.accent}`} />
+          {/* Notifications */}
+          <div className="landing-fade-up col-span-12 md:col-span-4 bg-white border border-black/10 rounded-2xl p-7 hover:-translate-y-0.5 hover:shadow-[0_8px_32px_rgba(0,0,0,0.07)] transition-all">
+            <span className="inline-block text-[10px] font-semibold tracking-[0.1em] uppercase px-2 py-0.5 rounded-full bg-[rgba(0,208,132,0.1)] text-[#00a868] mb-4">Push notifications</span>
+            <h3 className="font-syne text-xl font-bold tracking-tight text-[#0a0a0f] mb-2">Instant alerts, even offline</h3>
+            <p className="text-[13px] text-[#6b6b80] font-light leading-relaxed">Web Push VAPID — delivered to the lock screen even when TaskMe is closed.</p>
+            <div className="mt-5 flex flex-col gap-2">
+              {[
+                { emoji: "📋", bg: "#d4edda", title: "New Task Assigned", desc: "Lobby cleaning — due in 2h", time: "Now", dot: "#00d084" },
+                { emoji: "⚠️", bg: "#fef3cd", title: "Task Escalated 🔴", desc: "Pool deck inspection — 3h overdue", time: "12m ago", dot: "#ff5c35" },
+                { emoji: "✅", bg: "#d4e6f1", title: "Evidence Submitted", desc: "Room 812 — Sarah awaits review", time: "34m ago", dot: null },
+              ].map((n, i) => (
+                <div key={i} className="flex items-start gap-2.5 bg-[#f5f4f0] rounded-[10px] p-3 border border-black/10">
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0" style={{ background: n.bg }}>{n.emoji}</div>
+                  <div className="flex-1 min-w-0">
+                    <h5 className="text-[12px] font-medium text-[#0a0a0f] mb-0.5">{n.title}</h5>
+                    <p className="text-[11px] text-[#9898aa]">{n.desc}</p>
                   </div>
-                  <div>
-                    <p className="text-[13px] font-extrabold text-white">{s.label}</p>
-                    <p className="mt-0.5 text-[11.5px] leading-snug text-slate-500">{s.sub}</p>
-                  </div>
+                  <span className="text-[10px] text-[#9898aa] whitespace-nowrap">{n.time}</span>
+                  {n.dot && <div className="w-1.5 h-1.5 rounded-full self-center shrink-0" style={{ background: n.dot }} />}
                 </div>
-              );
-            })}
+              ))}
+            </div>
           </div>
-        </div>
-      </section>
 
-      {/* ── OBJECTION BUSTERS ── */}
-      <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
-        <div className="mb-10 text-center">
-          <h2 className="text-3xl font-bold text-white sm:text-4xl">Questions We Hear Every Demo</h2>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {[
-            {
-              q: "My staff aren't tech-savvy.",
-              a: "The staff interface has 3 buttons. If they can use WhatsApp, they can use TaskMe. We designed it specifically for frontline workers — large touch targets, photo-first, minimal typing.",
-              icon: PhoneCall,
-            },
-            {
-              q: "We already use Deputy / ShiftCare.",
-              a: "Keep using it for scheduling. TaskMe handles what happens after the shift starts — did the task actually get done, is there proof, and who is accountable? We sit alongside your scheduling tool.",
-              icon: RefreshCw,
-            },
-            {
-              q: "Is there a Chinese version?",
-              a: "Yes. TaskMe ships with English and Simplified Chinese out of the box. Staff can switch language on their device. Supervisor and manager views are in English.",
-              icon: CheckCircle2,
-            },
-            {
-              q: "Where is the data hosted?",
-              a: "Supabase infrastructure on AWS ap-southeast-1 — Singapore region. Data never leaves Singapore. We can provide a data processing agreement for PDPA compliance.",
-              icon: Shield,
-            },
-            {
-              q: "What does it cost?",
-              a: "S$3–5 per staff member per month. A team of 30 costs S$90–150/month — less than one guest compensation payout or a single MoH compliance incident.",
-              icon: TrendingUp,
-            },
-            {
-              q: "We need it to connect to Opera PMS.",
-              a: "Opera Cloud integration is on our Q4 2026 roadmap. Pilot partners get first access and direct input into the integration spec. In the meantime, setup takes under 10 minutes.",
-              icon: Zap,
-            },
-          ].map((item) => {
-            const QIcon = item.icon;
-            return (
-              <div key={item.q} className="rounded-2xl border border-white/10 bg-white/5 p-5">
-                <div className="mb-3 flex items-center gap-2">
-                  <QIcon className="h-4 w-4 text-slate-400" />
-                  <p className="text-[13px] font-bold text-white">"{item.q}"</p>
-                </div>
-                <p className="text-[12.5px] leading-relaxed text-slate-400">{item.a}</p>
+          {/* Bilingual */}
+          <div className="landing-fade-up col-span-12 sm:col-span-6 md:col-span-4 bg-white border border-black/10 rounded-2xl p-7 hover:-translate-y-0.5 hover:shadow-[0_8px_32px_rgba(0,0,0,0.07)] transition-all">
+            <span className="inline-block text-[10px] font-semibold tracking-[0.1em] uppercase px-2 py-0.5 rounded-full bg-[rgba(245,200,66,0.15)] text-[#b8901a] mb-4">Localisation</span>
+            <h3 className="font-syne text-xl font-bold tracking-tight text-[#0a0a0f] mb-2">English + 中文<br />built in</h3>
+            <p className="text-[13px] text-[#6b6b80] font-light leading-relaxed">The only task management platform with English–Mandarin bilingual UI designed specifically for Singapore&apos;s FM and hospitality workforce.</p>
+            <div className="mt-5 flex gap-2">
+              <div className="flex-1 bg-[#ece9e2] rounded-lg p-3 text-center">
+                <div className="text-[11px] text-[#9898aa] mb-1">English</div>
+                <div className="text-[13px] font-medium text-[#0a0a0f]">Task Complete ✓</div>
               </div>
-            );
-          })}
+              <div className="flex-1 bg-[#ece9e2] rounded-lg p-3 text-center">
+                <div className="text-[11px] text-[#9898aa] mb-1">中文</div>
+                <div className="text-[13px] font-medium text-[#0a0a0f]">任务完成 ✓</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Compliance */}
+          <div className="landing-fade-up col-span-12 sm:col-span-6 md:col-span-4 bg-white border border-black/10 rounded-2xl p-7 hover:-translate-y-0.5 hover:shadow-[0_8px_32px_rgba(0,0,0,0.07)] transition-all">
+            <span className="inline-block text-[10px] font-semibold tracking-[0.1em] uppercase px-2 py-0.5 rounded-full bg-[rgba(59,110,255,0.1)] text-[#3b6eff] mb-4">Compliance</span>
+            <h3 className="font-syne text-xl font-bold tracking-tight text-[#0a0a0f] mb-2">MOM &amp; PDPA ready</h3>
+            <p className="text-[13px] text-[#6b6b80] font-light leading-relaxed">Row-level security at the database layer. Every action timestamped and attributed. CSV export in minutes for any audit.</p>
+            <div className="mt-5 flex flex-col gap-1.5">
+              {["Row-Level Security (Supabase)", "Immutable timestamped audit trail", "PDPA Data Processing Agreement", "One-click evidence log export"].map((item) => (
+                <div key={item} className="flex items-center gap-2 text-[12px] text-[#6b6b80]">
+                  <span className="text-[#00a868]">✓</span> {item}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Realtime */}
+          <div className="landing-fade-up col-span-12 sm:col-span-12 md:col-span-4 bg-white border border-black/10 rounded-2xl p-7 hover:-translate-y-0.5 hover:shadow-[0_8px_32px_rgba(0,0,0,0.07)] transition-all">
+            <span className="inline-block text-[10px] font-semibold tracking-[0.1em] uppercase px-2 py-0.5 rounded-full bg-[rgba(0,208,132,0.1)] text-[#00a868] mb-4">Realtime</span>
+            <h3 className="font-syne text-xl font-bold tracking-tight text-[#0a0a0f] mb-2">Live updates via WebSocket</h3>
+            <p className="text-[13px] text-[#6b6b80] font-light leading-relaxed">Supabase Realtime channels keep every dashboard in sync. See task completions, reviews, and escalations appear instantly — no page refresh.</p>
+            <div className="mt-5 flex flex-col gap-1.5">
+              {["Task status changes propagate in <1s", "Per-org channel isolation", "Works on 3G/4G mobile connections", "Automatic reconnection & sync"].map((item) => (
+                <div key={item} className="flex items-center gap-2 text-[12px] text-[#6b6b80]">
+                  <span className="text-[#00a868]">✓</span> {item}
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* ── DEMO LOGIN CARDS ── */}
-      <section id="demo-section" className="mx-auto max-w-6xl px-4 pb-20 sm:px-6">
-        <div className="mb-10 text-center">
-          <h2 className="text-2xl font-bold text-white sm:text-3xl">Try the Live Demo</h2>
-          <p className="mt-2 text-slate-400">Click any card to instantly log in as that role — no signup required</p>
+      {/* ── INDUSTRIES ── */}
+      <section id="industries" className="max-w-[1200px] mx-auto px-6 sm:px-12 pb-20 sm:pb-24">
+        <p className="text-[11px] font-semibold tracking-[0.12em] uppercase text-[#9898aa] mb-3">
+          Industries
+        </p>
+        <h2 className="font-syne text-[clamp(32px,4vw,52px)] font-bold tracking-tight text-[#0a0a0f] leading-[1.05] mb-14">
+          Built for Singapore&apos;s
+          <br />most demanding operations
+        </h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          {[
+            { icon: "🏨", title: "Hospitality", desc: "Hotels, resorts, serviced apartments", active: true },
+            { icon: "🏢", title: "Facility Management", desc: "Commercial, retail, mixed-use", active: false },
+            { icon: "🏥", title: "Aged Care", desc: "Nursing homes, assisted living", active: false },
+            { icon: "🛍", title: "Retail & Malls", desc: "Multi-site, CapitaLand, Frasers", active: false },
+            { icon: "🔨", title: "Construction", desc: "BCA safety inspections, WSHA", active: false },
+          ].map((ind, i) => (
+            <div
+              key={i}
+              className={`border rounded-[10px] px-5 py-6 text-center cursor-pointer transition-all hover:bg-[#0a0a0f] hover:border-[#0a0a0f] hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(10,10,15,0.15)] group ${
+                ind.active
+                  ? "bg-[#0a0a0f] border-[#0a0a0f] -translate-y-0.5 shadow-[0_8px_24px_rgba(10,10,15,0.15)]"
+                  : "bg-white border-black/10"
+              }`}
+            >
+              <div className={`w-11 h-11 rounded-[10px] flex items-center justify-center text-xl mx-auto mb-3 transition-colors ${
+                ind.active ? "bg-white/10" : "bg-[#ece9e2] group-hover:bg-white/10"
+              }`}>
+                {ind.icon}
+              </div>
+              <h4 className={`text-[13px] font-medium mb-1 transition-colors ${
+                ind.active ? "text-white" : "text-[#0a0a0f] group-hover:text-white"
+              }`}>{ind.title}</h4>
+              <p className={`text-[11px] font-light leading-snug transition-colors ${
+                ind.active ? "text-white/50" : "text-[#9898aa] group-hover:text-white/50"
+              }`}>{ind.desc}</p>
+            </div>
+          ))}
         </div>
+      </section>
+
+      {/* ── PROOF BANNER ── */}
+      <section className="bg-[#0a0a0f] py-0">
+        <div className="max-w-[1200px] mx-auto px-6 sm:px-12 py-16 sm:py-20 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+          <div>
+            <p className="text-[11px] font-medium tracking-[0.1em] uppercase text-white/35 mb-4">What customers say</p>
+            <blockquote className="font-syne text-[clamp(22px,3vw,28px)] font-semibold tracking-tight text-white leading-[1.25] mb-6">
+              &ldquo;We went from <span className="text-[#00d084]">4 hours</span> of manual reporting every week to <span className="text-[#00d084]">5 minutes</span>. The escalation alerts alone caught three issues before the guest even noticed.&rdquo;
+            </blockquote>
+            <p className="text-[13px] text-white/40">— Operations Manager, 5-star hotel, Orchard Road</p>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            {[
+              { val: "95%", desc: "Faster escalation response — from hours to minutes" },
+              { val: "90%", desc: "Reduction in weekly supervisor reporting time" },
+              { val: "100%", desc: "Task capture — vs 60% with verbal/WhatsApp" },
+              { val: "40%", desc: "Fewer guest complaints in 30-day pilots" },
+            ].map((m, i) => (
+              <div key={i} className="bg-white/[0.04] border border-white/[0.08] rounded-[10px] p-6">
+                <div className="font-syne text-4xl font-bold tracking-tight text-[#00d084] leading-none mb-1.5">{m.val}</div>
+                <div className="text-[13px] text-white/45 font-light leading-snug">{m.desc}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── DEMO SECTION ── */}
+      <section id="demo" className="max-w-[1200px] mx-auto px-6 sm:px-12 pb-20 sm:pb-24">
+        <p className="text-[11px] font-semibold tracking-[0.12em] uppercase text-[#9898aa] mb-3">Try it now</p>
+        <h2 className="font-syne text-[clamp(32px,4vw,52px)] font-bold tracking-tight text-[#0a0a0f] leading-[1.05] mb-4">
+          Click to log in as any role
+          <br />— no signup required
+        </h2>
+        <p className="text-[17px] font-light text-[#6b6b80] leading-relaxed max-w-[520px] mb-14">
+          Experience the exact dashboard each role sees. Real data, real workflows.
+        </p>
 
         {error && (
-          <div className="mx-auto mb-6 max-w-md rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-center text-sm text-red-400">
+          <div className="max-w-md mx-auto mb-6 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-center text-sm text-red-700">
             {error}
           </div>
         )}
 
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {demoUsers.map((user) => {
-            const colors = colorMap[user.color];
             const isLoading = loadingEmail === user.email;
-            const isFeatured = "featured" in user && user.featured;
-
             return (
-              <Card
+              <div
                 key={user.email}
-                className={`relative overflow-hidden border-0 bg-white/5 backdrop-blur-sm transition-all duration-200 hover:scale-[1.02] hover:bg-white/10 ${
-                  isFeatured ? `ring-2 ${colors.ring} sm:col-span-2 lg:col-span-1` : ""
+                className={`bg-white border rounded-2xl overflow-hidden cursor-pointer hover:-translate-y-1 hover:shadow-[0_12px_40px_rgba(0,0,0,0.10)] transition-all ${
+                  user.featured ? "border-[#0a0a0f] shadow-[0_4px_20px_rgba(10,10,15,0.10)]" : "border-black/10"
                 }`}
+                onClick={() => !loadingEmail && handleDemoLogin(user.email)}
               >
-                {isFeatured && (
-                  <div className="absolute right-0 top-0 rounded-bl-xl bg-violet-500 px-3 py-1 text-[11px] font-bold text-white">
-                    RECOMMENDED
-                  </div>
-                )}
-                <div className="p-6">
-                  <div className="mb-4 flex items-start justify-between">
-                    <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${colors.accentBg} border`}>
-                      <user.icon className={`h-6 w-6 ${colors.accent}`} />
+                <div className="p-5 pb-4 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="w-[42px] h-[42px] rounded-full flex items-center justify-center text-lg font-semibold shrink-0"
+                      style={{ background: user.avatarBg, color: user.avatarColor }}
+                    >
+                      {user.initials}
                     </div>
-                    <span className={`rounded-full px-3 py-1 text-[11px] font-bold ${colors.badge}`}>
-                      {user.role}
-                    </span>
-                  </div>
-                  <h3 className="text-[17px] font-bold text-white">{user.name}</h3>
-                  <p className="text-sm text-slate-400">{user.title}</p>
-                  <p className="mt-3 text-[13px] leading-relaxed text-slate-500">{user.description}</p>
-
-                  <div className="mt-4 space-y-1.5 rounded-xl bg-black/20 px-3 py-3">
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-slate-500">Email</span>
-                      <span className="font-mono text-slate-300">{user.email}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-slate-500">Password</span>
-                      <span className="font-mono text-slate-300">{DEMO_PASSWORD}</span>
+                    <div>
+                      <h4 className="text-sm font-medium text-[#0a0a0f]">{user.name}</h4>
+                      <p className="text-[12px] text-[#9898aa]">{user.title}</p>
                     </div>
                   </div>
-
-                  <Button
-                    className={`mt-5 h-11 w-full font-bold text-white ${colors.button} min-h-[44px] rounded-xl`}
-                    disabled={loadingEmail !== null}
-                    onClick={() => handleDemoLogin(user.email)}
+                  <span
+                    className="text-[10px] font-bold tracking-[0.06em] uppercase px-2.5 py-1 rounded-full"
+                    style={{ background: user.badgeBg, color: user.badgeColor }}
                   >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Signing in…
-                      </>
-                    ) : (
-                      <>
-                        Try {user.role} View
-                        <ArrowRight className="ml-2 h-4 w-4" />
-                      </>
-                    )}
-                  </Button>
+                    {user.role}
+                  </span>
                 </div>
-              </Card>
+                <div className="px-5 pb-4">
+                  <p className="text-[13px] text-[#6b6b80] font-light leading-relaxed">{user.description}</p>
+                </div>
+                <div className="px-5 pb-5">
+                  <button
+                    disabled={loadingEmail !== null}
+                    className={`w-full py-2.5 rounded-full text-[13px] font-medium transition-all disabled:opacity-60 ${user.btnStyle}`}
+                  >
+                    {isLoading ? "Signing in…" : `Try ${user.role} View →`}
+                  </button>
+                </div>
+              </div>
             );
           })}
         </div>
       </section>
 
-      {/* ── FOOTER ── */}
-      <footer className="border-t border-white/10 py-10">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500 font-bold text-white">T</div>
-              <span className="font-bold text-white">TaskMe</span>
-            </div>
-            <p className="text-[12px] text-slate-500">
-              Hospitality · Facility Management · Aged Care · NDIS
-              &nbsp;·&nbsp; Singapore & APAC
-            </p>
-            <p className="text-[12px] text-slate-600">© {new Date().getFullYear()} TaskMe. All rights reserved.</p>
+      {/* ── FINAL CTA ── */}
+      <div className="px-6 sm:px-12 pb-20 sm:pb-24">
+        <div className="max-w-[700px] mx-auto bg-[#0a0a0f] rounded-3xl px-8 sm:px-12 py-16 sm:py-20 text-center relative overflow-hidden">
+          <div className="absolute -top-20 -right-20 w-[300px] h-[300px] rounded-full bg-[rgba(0,208,132,0.08)] pointer-events-none" />
+          <div className="absolute -bottom-16 -left-16 w-[240px] h-[240px] rounded-full bg-[rgba(59,110,255,0.06)] pointer-events-none" />
+          <h2 className="font-syne text-[clamp(28px,4vw,44px)] font-bold tracking-tight text-white mb-4 relative z-10">
+            Replace WhatsApp<br />with accountability — today
+          </h2>
+          <p className="text-base text-white/50 font-light leading-relaxed mb-9 relative z-10">
+            Free 30-day pilot. No credit card. No IT setup. Your team is running in under 15
+            minutes. PSG grant covers up to 50% of cost.
+          </p>
+          <div className="flex gap-3 justify-center flex-wrap relative z-10">
+            <a href="#demo" className="bg-white text-[#0a0a0f] text-sm font-medium px-7 py-3 rounded-full hover:bg-[#ece9e2] transition-colors">
+              Start Free Pilot →
+            </a>
+            <a href="#how-it-works" className="text-white/70 text-sm border border-white/20 px-6 py-3 rounded-full hover:border-white/50 hover:text-white transition-all">
+              See how it works
+            </a>
           </div>
+        </div>
+      </div>
+
+      {/* ── FOOTER ── */}
+      <footer className="border-t border-black/10 px-6 sm:px-12 py-10">
+        <div className="max-w-[1200px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+          <span className="font-syne font-extrabold text-lg tracking-tight text-[#0a0a0f]">TaskMe</span>
+          <div className="flex gap-6">
+            {["Privacy", "Terms", "PDPA", "Support", "Singapore"].map((link) => (
+              <span key={link} className="text-[13px] text-[#9898aa] hover:text-[#0a0a0f] cursor-pointer transition-colors">
+                {link}
+              </span>
+            ))}
+          </div>
+          <p className="text-[12px] text-[#9898aa]">© 2026 TaskMe · Compliance-Grade Task Management</p>
         </div>
       </footer>
     </div>
