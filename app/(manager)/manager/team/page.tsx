@@ -36,18 +36,22 @@ export default async function ManagerTeamPage() {
       .from("profiles")
       .select("id, full_name, avatar_url, role")
       .in("role", ["staff", "supervisor"])
+      .eq("org_id", profile.org_id)
       .order("full_name"),
     supabase
       .from("tasks")
       .select(
         "id, status, priority, site_location, assigned_to, due_date, completed_at, created_at",
-      ),
+      )
+      .eq("org_id", profile.org_id),
     supabase
       .from("task_reviews")
-      .select("id, task_id, reviewed_by, action, reviewed_at"),
+      .select("id, task_id, reviewed_by, action, reviewed_at")
+      .eq("org_id", profile.org_id),
     supabase
       .from("escalations")
-      .select("id, task_id, escalated_to, is_resolved, escalated_at"),
+      .select("id, task_id, escalated_to, is_resolved, escalated_at")
+      .eq("org_id", profile.org_id),
   ]);
 
   const allPeople = people || [];

@@ -105,7 +105,7 @@ export async function middleware(request: NextRequest) {
     // Fetch user role from profiles table
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role")
+      .select("role, org_id")
       .eq("id", user.id)
       .single();
 
@@ -124,7 +124,7 @@ export async function middleware(request: NextRequest) {
       ) {
         const { data: profile } = await supabase
           .from("profiles")
-          .select("role")
+          .select("role, org_id")
           .eq("id", user.id)
           .single();
 

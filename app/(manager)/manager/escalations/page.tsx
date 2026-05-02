@@ -34,6 +34,7 @@ export default async function ManagerEscalationsPage() {
        from_profile:profiles!escalations_escalated_from_fkey(id, full_name, avatar_url, role),
        to_profile:profiles!escalations_escalated_to_fkey(id, full_name, avatar_url, role)`,
     )
+    .eq("org_id", profile.org_id)
     .order("is_resolved", { ascending: true })
     .order("escalated_at", { ascending: false });
 

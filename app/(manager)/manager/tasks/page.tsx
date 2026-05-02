@@ -25,13 +25,15 @@ export default async function ManagerTasksPage() {
        assigned_to_profile:profiles!tasks_assigned_to_fkey(id, full_name, avatar_url, role),
        created_by_profile:profiles!tasks_created_by_fkey(id, full_name, avatar_url, role)`,
     )
+    .eq("org_id", profile.org_id)
     .order("created_at", { ascending: false });
 
   /* ── Open escalations per task (to show badge) ── */
   const { data: escalations } = await supabase
     .from("escalations")
     .select("task_id")
-    .eq("is_resolved", false);
+    .eq("is_resolved", false)
+    .eq("org_id", profile.org_id);
 
   const escalatedTaskIds = new Set(
     (escalations || []).map((e: { task_id: string }) => e.task_id),
@@ -42,6 +44,7 @@ export default async function ManagerTasksPage() {
     .from("profiles")
     .select("id, full_name, avatar_url")
     .eq("role", "staff")
+    .eq("org_id", profile.org_id)
     .order("full_name", { ascending: true });
 
   const tasksWithEscalation = (tasks || []).map((t) => ({

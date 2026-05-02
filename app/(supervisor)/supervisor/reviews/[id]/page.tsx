@@ -19,7 +19,7 @@ export default async function ReviewDetailPage({
   // Verify supervisor/manager role
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role")
+    .select("role, org_id")
     .eq("id", user.id)
     .single();
 
@@ -34,6 +34,7 @@ export default async function ReviewDetailPage({
       "*, assigned_to_profile:profiles!tasks_assigned_to_fkey(*)"
     )
     .eq("id", taskId)
+    .eq("org_id", profile.org_id)
     .single();
 
   if (!task) redirect("/supervisor/dashboard");
@@ -43,6 +44,7 @@ export default async function ReviewDetailPage({
     .from("task_evidence")
     .select("*, submitter:profiles!task_evidence_submitted_by_fkey(*)")
     .eq("task_id", taskId)
+    .eq("org_id", profile.org_id)
     .order("submitted_at", { ascending: false })
     .limit(1);
 
@@ -53,6 +55,7 @@ export default async function ReviewDetailPage({
     .from("profiles")
     .select("id, full_name")
     .eq("role", "manager")
+    .eq("org_id", profile.org_id)
     .limit(1);
 
   const managerId = managers?.[0]?.id || null;

@@ -11,22 +11,49 @@ export type TaskPriority = "low" | "medium" | "high" | "critical";
 
 export type ReviewAction = "approved" | "rejected";
 
+// ── Multi-tenancy types ──
+
+export interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  logo_url: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Site {
+  id: string;
+  org_id: string;
+  name: string;
+  address: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
+// ── Core types ──
+
 export interface Profile {
   id: string;
+  org_id: string;
   full_name: string;
   email: string;
   role: UserRole;
+  reports_to: string | null;
   avatar_url: string | null;
   created_at: string;
 }
 
 export interface Task {
   id: string;
+  org_id: string;
   title: string;
   description: string | null;
   assigned_to: string | Profile;
   created_by: string | Profile;
-  site_location: string | null;
+  site_id: string | null;
+  site_location: string | null; // deprecated — use site_id
   priority: TaskPriority;
   status: TaskStatus;
   due_date: string;
@@ -36,6 +63,7 @@ export interface Task {
 
 export interface TaskEvidence {
   id: string;
+  org_id: string | null;
   task_id: string;
   submitted_by: string | Profile;
   photo_url: string;
@@ -45,6 +73,7 @@ export interface TaskEvidence {
 
 export interface TaskReview {
   id: string;
+  org_id: string | null;
   task_id: string;
   reviewed_by: string | Profile;
   action: ReviewAction;
@@ -54,6 +83,7 @@ export interface TaskReview {
 
 export interface Escalation {
   id: string;
+  org_id: string;
   task_id: string | Task;
   escalated_from: string | Profile;
   escalated_to: string | Profile;

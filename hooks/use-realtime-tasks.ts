@@ -6,13 +6,14 @@ import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 
 /**
- * Subscribes to real-time changes on the tasks table for the current user.
+ * Subscribes to real-time changes on the tasks table for the current user
+ * within their organization.
  * Automatically refreshes the page and shows toast notifications when:
  * - A new task is assigned
  * - A task status changes (e.g. supervisor reviews)
  * - A task is updated (priority change, reassignment)
  */
-export function useRealtimeTasks(userId: string | undefined) {
+export function useRealtimeTasks(userId: string | undefined, orgId?: string) {
   const router = useRouter();
 
   useEffect(() => {
@@ -21,7 +22,7 @@ export function useRealtimeTasks(userId: string | undefined) {
     const supabase = createClient();
 
     const channel = supabase
-      .channel(`tasks:${userId}`)
+      .channel(`tasks:${orgId ?? userId}`)
       .on(
         "postgres_changes",
         {
@@ -79,5 +80,5 @@ export function useRealtimeTasks(userId: string | undefined) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [userId, router]);
+  }, [userId, orgId, router]);
 }

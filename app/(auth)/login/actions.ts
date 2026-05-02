@@ -39,7 +39,7 @@ export async function login(formData: FormData) {
   // Fetch user role from profiles table
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role")
+    .select("role, org_id")
     .eq("id", data.user.id)
     .single();
 

@@ -16,10 +16,20 @@ export default async function TaskDetailPage({
 
   if (!user) redirect("/login");
 
+  // Fetch profile for org scoping
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("org_id")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile) redirect("/login");
+
   const { data: task } = await supabase
     .from("tasks")
     .select("*")
     .eq("id", id)
+    .eq("org_id", profile.org_id)
     .single();
 
   if (!task) redirect("/staff/dashboard");
@@ -39,6 +49,7 @@ export default async function TaskDetailPage({
     .from("task_evidence")
     .select("*")
     .eq("task_id", id)
+    .eq("org_id", profile.org_id)
     .order("submitted_at", { ascending: false });
 
   // Fetch reviews for this task
@@ -46,6 +57,7 @@ export default async function TaskDetailPage({
     .from("task_reviews")
     .select("*")
     .eq("task_id", id)
+    .eq("org_id", profile.org_id)
     .order("reviewed_at", { ascending: false });
 
   // Fetch reviewer profiles

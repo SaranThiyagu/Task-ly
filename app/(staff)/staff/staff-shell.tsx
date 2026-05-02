@@ -45,6 +45,7 @@ export default function StaffShell({
   const pathname = usePathname();
   const router = useRouter();
   const [userId, setUserId] = useState<string>();
+  const [orgId, setOrgId] = useState<string>();
   const [profile, setProfile] = useState<{
     full_name: string;
     avatar_url: string | null;
@@ -57,14 +58,17 @@ export default function StaffShell({
       setUserId(user.id);
       const { data } = await supabase
         .from("profiles")
-        .select("full_name, avatar_url")
+        .select("full_name, avatar_url, org_id")
         .eq("id", user.id)
         .single();
-      if (data) setProfile(data);
+      if (data) {
+        setProfile(data);
+        setOrgId(data.org_id);
+      }
     });
   }, []);
 
-  useRealtimeTasks(userId);
+  useRealtimeTasks(userId, orgId);
   usePushNotifications(userId);
 
   async function handleLogout() {
