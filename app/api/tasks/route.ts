@@ -13,6 +13,22 @@ interface CreateTaskBody {
   due_date: string;
 }
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function looksLikeSchemaMismatch(errorMessage: string): boolean {
+  const m = errorMessage.toLowerCase();
+  return (
+    m.includes("schema cache") ||
+    m.includes("could not find") ||
+    m.includes("column") ||
+    m.includes("assigned_to") ||
+    m.includes("created_by") ||
+    m.includes("org_id") ||
+    m.includes("site_id")
+  );
+}
+
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const {
@@ -59,22 +75,78 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { data: task, error } = await supabase
+  const taskId = crypto.randomUUID();
+
+  const modernPayload = {
+    id: taskId,
+    title: title.trim(),
+    description: description?.trim() ?? null,
+    assigned_to,
+    created_by: user.id,
+    org_id: profile.org_id,
+    site_id: site_id ?? null,
+    site_location: site_location?.trim() ?? null,
+    priority: priority ?? "medium",
+    due_date,
+    status: "pending",
+  };
+
+  let { data: task, error } = await supabase
     .from("tasks")
-    .insert({
-      title: title.trim(),
-      description: description?.trim() ?? null,
-      assigned_to,
-      created_by: user.id,
-      org_id: profile.org_id,
-      site_id: site_id ?? null,
-      site_location: site_location?.trim() ?? null,
-      priority: priority ?? "medium",
-      due_date,
-      status: "pending",
-    })
+    .insert(modernPayload)
     .select()
     .single();
+
+  if (error && looksLikeSchemaMismatch(error.message)) {
+    let fallbackAssignedToId = assigned_to;
+    const { data: existingAssigned } = await supabase
+      .from("tasks")
+      .select("assigned_to_id")
+      .not("assigned_to_id", "is", null)
+      .limit(1)
+      .maybeSingle();
+
+    if (
+      existingAssigned?.assigned_to_id &&
+      !UUID_REGEX.test(existingAssigned.assigned_to_id) &&
+      UUID_REGEX.test(assigned_to)
+    ) {
+      fallbackAssignedToId = existingAssigned.assigned_to_id;
+    }
+
+    const { data: existingCategory } = await supabase
+      .from("tasks")
+      .select("category_id")
+      .not("category_id", "is", null)
+      .limit(1)
+      .maybeSingle();
+
+    const legacyPriority =
+      (priority ?? "medium") === "critical" ? "high" : priority ?? "medium";
+
+    const legacyPayload: Record<string, unknown> = {
+      id: taskId,
+      title: title.trim(),
+      description: description?.trim() ?? null,
+      status: "todo",
+      priority: legacyPriority,
+      due_date,
+      assigned_to_id: fallbackAssignedToId,
+    };
+
+    if (existingCategory?.category_id) {
+      legacyPayload.category_id = existingCategory.category_id;
+    }
+
+    const fallbackInsert = await supabase
+      .from("tasks")
+      .insert(legacyPayload)
+      .select()
+      .single();
+
+    task = fallbackInsert.data;
+    error = fallbackInsert.error;
+  }
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

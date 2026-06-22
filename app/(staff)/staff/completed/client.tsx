@@ -26,6 +26,7 @@ import {
   SheetContent,
 } from "@/components/ui/sheet";
 import { useDictionary } from "@/lib/i18n/dictionary-provider";
+import { normalizeTaskStatus } from "@/lib/tasks/normalization";
 import type { Task, TaskReview, TaskEvidence, Profile, TaskPriority } from "@/lib/types";
 
 interface TaskWithReviews extends Task {
@@ -70,12 +71,13 @@ const priorityLabel: Record<TaskPriority, string> = {
 };
 
 function getReviewStatus(task: TaskWithReviews) {
+  const normalized = normalizeTaskStatus(task.status);
   const reviews = task.task_reviews || [];
   const isApproved = reviews.some((r) => r.action === "approved");
   const isRejected =
-    task.status === "rejected" || reviews.some((r) => r.action === "rejected");
+    normalized === "rejected" || reviews.some((r) => r.action === "rejected");
   return {
-    isApproved: isApproved && !isRejected,
+    isApproved: (isApproved || normalized === "completed") && !isRejected,
     isRejected,
     isPending: !isApproved && !isRejected,
   };

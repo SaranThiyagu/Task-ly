@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { randomUUID } from "node:crypto";
 
 // ── Config ──
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -73,6 +74,24 @@ function daysAgo(d: number): string {
   return new Date(Date.now() - d * 24 * 60 * 60 * 1000).toISOString();
 }
 
+async function tableExists(table: string): Promise<boolean> {
+  const { error } = await supabase.from(table).select("id").limit(1);
+  if (!error) return true;
+  return !error.message.includes("Could not find the table");
+}
+
+async function columnExists(table: string, column: string): Promise<boolean> {
+  const { error } = await supabase.from(table).select(column).limit(1);
+  if (!error) return true;
+  if (
+    error.message.includes(`Could not find the '${column}' column`) ||
+    error.message.includes(`column ${table}.${column} does not exist`)
+  ) {
+    return false;
+  }
+  return true;
+}
+
 // ── Main ──
 async function seed() {
   console.log("🌱 Seeding TaskMe demo data...\n");
@@ -130,11 +149,16 @@ async function seed() {
       userId = existing.id;
       console.log(`    ↳ Already exists (${userId})`);
     } else {
-      // Create user WITHOUT user_metadata to avoid trigger issues
+      // Create user with metadata so handle_new_user can set org_id safely.
       const { data, error } = await supabase.auth.admin.createUser({
         email: u.email,
         password: DEMO_PASSWORD,
         email_confirm: true,
+        user_metadata: {
+          full_name: u.full_name,
+          role: u.role,
+          org_id: DEMO_ORG_ID,
+        },
       });
 
       if (error) {
@@ -389,25 +413,159 @@ async function seed() {
     },
   ];
 
-  const insertedTaskIds: string[] = [];
+  // 2a. Probe table/column capabilities for schema compatibility.
+  const hasTaskEvidenceTable = await tableExists("task_evidence");
+  const hasTaskReviewsTable = await tableExists("task_reviews");
+  const hasEscalationsTable = await tableExists("escalations");
 
-  for (const task of taskDefs) {
+  const tasksHasOrgId = await columnExists("tasks", "org_id");
+  const tasksHasAssignedTo = await columnExists("tasks", "assigned_to");
+  const tasksHasAssignedToId = await columnExists("tasks", "assigned_to_id");
+  const tasksHasCreatedBy = await columnExists("tasks", "created_by");
+  const tasksHasCreatedById = await columnExists("tasks", "created_by_id");
+  const tasksHasSiteId = await columnExists("tasks", "site_id");
+  const tasksHasSiteLocation = await columnExists("tasks", "site_location");
+  const tasksHasCompletedAt = await columnExists("tasks", "completed_at");
+  const tasksHasCategoryId = await columnExists("tasks", "category_id");
+  const usesAssignedToIdSchema = tasksHasAssignedToId && !tasksHasAssignedTo;
+
+  const escalationsHasOrgId = hasEscalationsTable
+    ? await columnExists("escalations", "org_id")
+    : false;
+
+  if (!hasTaskEvidenceTable) {
+    console.log('    ⚠ Skipping task evidence seeding (table "task_evidence" not found)');
+  }
+  if (!hasTaskReviewsTable) {
+    console.log('    ⚠ Skipping task reviews seeding (table "task_reviews" not found)');
+  }
+  if (usesAssignedToIdSchema) {
+    console.log("    ↳ Detected legacy task status mapping (todo/approved)");
+  }
+
+  // 2b. Clear previous demo tasks to make reseeding deterministic.
+  console.log("\n  Clearing previous demo task data...");
+
+  if (hasEscalationsTable && escalationsHasOrgId) {
+    const { error: deleteEscalationsError } = await supabase
+      .from("escalations")
+      .delete()
+      .eq("org_id", DEMO_ORG_ID);
+    if (deleteEscalationsError) {
+      console.error(`    ✗ Delete escalations: ${deleteEscalationsError.message}`);
+    }
+  }
+
+  if (hasTaskReviewsTable) {
+    const reviewsDelete = supabase.from("task_reviews").delete();
+    const { error: deleteReviewsError } = tasksHasOrgId
+      ? await reviewsDelete.eq("org_id", DEMO_ORG_ID)
+      : await reviewsDelete;
+    if (deleteReviewsError) {
+      console.error(`    ✗ Delete task reviews: ${deleteReviewsError.message}`);
+    }
+  }
+
+  if (hasTaskEvidenceTable) {
+    const evidenceDelete = supabase.from("task_evidence").delete();
+    const { error: deleteEvidenceError } = tasksHasOrgId
+      ? await evidenceDelete.eq("org_id", DEMO_ORG_ID)
+      : await evidenceDelete;
+    if (deleteEvidenceError) {
+      console.error(`    ✗ Delete task evidence: ${deleteEvidenceError.message}`);
+    }
+  }
+
+  const taskTitles = taskDefs.map((task) => task.title);
+  const tasksDelete = supabase.from("tasks").delete();
+  const { error: deleteTasksError } = tasksHasOrgId
+    ? await tasksDelete.eq("org_id", DEMO_ORG_ID)
+    : await tasksDelete.in("title", taskTitles);
+  if (deleteTasksError) {
+    console.error(`    ✗ Delete tasks: ${deleteTasksError.message}`);
+  } else {
+    console.log("    ✓ Existing demo tasks cleared");
+  }
+
+  let fallbackCategoryId: string | null = null;
+  if (tasksHasCategoryId) {
+    const { data: categoryData } = await supabase
+      .from("tasks")
+      .select("category_id")
+      .not("category_id", "is", null)
+      .limit(1)
+      .maybeSingle();
+    fallbackCategoryId = categoryData?.category_id ?? null;
+  }
+
+  let fallbackAssignedToId: string | null = null;
+  if (tasksHasAssignedToId) {
+    const { data: assigneeData } = await supabase
+      .from("tasks")
+      .select("assigned_to_id")
+      .not("assigned_to_id", "is", null)
+      .limit(1)
+      .maybeSingle();
+    fallbackAssignedToId = assigneeData?.assigned_to_id ?? null;
+  }
+
+  if (usesAssignedToIdSchema && !fallbackAssignedToId) {
+    throw new Error(
+      "Could not find a valid assigned_to_id in existing tasks for legacy schema compatibility."
+    );
+  }
+
+  const taskIdsByIndex: Record<number, string> = {};
+
+  for (const [index, task] of taskDefs.entries()) {
+    const mappedStatus = usesAssignedToIdSchema
+      ? task.status === "completed"
+        ? "approved"
+        : "todo"
+      : task.status;
+    const mappedPriority = usesAssignedToIdSchema && task.priority === "critical"
+      ? "high"
+      : task.priority;
+
+    const taskInsertPayload: Record<string, unknown> = {
+      id: randomUUID(),
+      title: task.title,
+      description: task.description,
+      priority: mappedPriority,
+      status: mappedStatus,
+      due_date: task.due_date,
+    };
+
+    if (tasksHasAssignedTo) taskInsertPayload.assigned_to = task.assigned_to;
+    if (tasksHasAssignedToId) {
+      taskInsertPayload.assigned_to_id = fallbackAssignedToId ?? task.assigned_to;
+    }
+    if (tasksHasCreatedBy) taskInsertPayload.created_by = task.created_by;
+    if (tasksHasCreatedById) taskInsertPayload.created_by_id = task.created_by;
+    if (tasksHasOrgId) taskInsertPayload.org_id = DEMO_ORG_ID;
+    if (tasksHasSiteLocation) taskInsertPayload.site_location = task.site_location;
+    if (tasksHasCompletedAt) taskInsertPayload.completed_at = task.completed_at;
+    if (tasksHasSiteId) {
+      taskInsertPayload.site_id = task.site_location ? siteIds[task.site_location] ?? null : null;
+    }
+    if (tasksHasCategoryId) taskInsertPayload.category_id = fallbackCategoryId;
+
     const { data, error } = await supabase
       .from("tasks")
-      .insert({
-        ...task,
-        org_id: DEMO_ORG_ID,
-        site_id: task.site_location ? siteIds[task.site_location] ?? null : null,
-      })
+      .insert(taskInsertPayload)
       .select("id")
       .single();
 
     if (error) {
       console.error(`    ✗ Task "${task.title}": ${error.message}`);
     } else {
-      insertedTaskIds.push(data.id);
+      taskIdsByIndex[index] = data.id;
       console.log(`    ✓ ${task.title}`);
     }
+  }
+
+  if (Object.keys(taskIdsByIndex).length === 0) {
+    throw new Error("No tasks were inserted. Check live Supabase schema compatibility.");
   }
 
   // 3. Add evidence for the 2 "pending review" tasks (index 10, 11)
@@ -428,19 +586,25 @@ async function seed() {
     },
   ];
 
-  for (const ev of evidenceTasks) {
-    if (!insertedTaskIds[ev.taskIndex]) continue;
-    const { error } = await supabase.from("task_evidence").insert({
-      task_id: insertedTaskIds[ev.taskIndex],
-      submitted_by: ev.submitted_by,
-      photo_url: `https://placehold.co/800x600/e2e8f0/475569?text=Evidence+Photo`,
-      notes: ev.notes,
-      org_id: DEMO_ORG_ID,
-    });
-    if (error) {
-      console.error(`    ✗ Evidence: ${error.message}`);
-    } else {
-      console.log(`    ✓ Evidence for task #${ev.taskIndex + 1}`);
+  if (hasTaskEvidenceTable) {
+    const evidenceHasOrgId = await columnExists("task_evidence", "org_id");
+    for (const ev of evidenceTasks) {
+      const taskId = taskIdsByIndex[ev.taskIndex];
+      if (!taskId) continue;
+      const evidencePayload: Record<string, unknown> = {
+        task_id: taskId,
+        submitted_by: ev.submitted_by,
+        photo_url: `https://placehold.co/800x600/e2e8f0/475569?text=Evidence+Photo`,
+        notes: ev.notes,
+      };
+      if (evidenceHasOrgId) evidencePayload.org_id = DEMO_ORG_ID;
+
+      const { error } = await supabase.from("task_evidence").insert(evidencePayload);
+      if (error) {
+        console.error(`    ✗ Evidence: ${error.message}`);
+      } else {
+        console.log(`    ✓ Evidence for task #${ev.taskIndex + 1}`);
+      }
     }
   }
 
@@ -468,51 +632,66 @@ async function seed() {
     },
   ];
 
-  for (const ev of completedEvidence) {
-    if (!insertedTaskIds[ev.taskIndex]) continue;
-    const { error } = await supabase.from("task_evidence").insert({
-      task_id: insertedTaskIds[ev.taskIndex],
-      submitted_by: ev.submitted_by,
-      photo_url: `https://placehold.co/800x600/d1fae5/166534?text=Completed`,
-      notes: ev.notes,
-      org_id: DEMO_ORG_ID,
-    });
-    if (error) {
-      console.error(`    ✗ Evidence: ${error.message}`);
-    } else {
-      console.log(`    ✓ Evidence for completed task #${ev.taskIndex + 1}`);
+  if (hasTaskEvidenceTable) {
+    const evidenceHasOrgId = await columnExists("task_evidence", "org_id");
+    for (const ev of completedEvidence) {
+      const taskId = taskIdsByIndex[ev.taskIndex];
+      if (!taskId) continue;
+      const evidencePayload: Record<string, unknown> = {
+        task_id: taskId,
+        submitted_by: ev.submitted_by,
+        photo_url: `https://placehold.co/800x600/d1fae5/166534?text=Completed`,
+        notes: ev.notes,
+      };
+      if (evidenceHasOrgId) evidencePayload.org_id = DEMO_ORG_ID;
+
+      const { error } = await supabase.from("task_evidence").insert(evidencePayload);
+      if (error) {
+        console.error(`    ✗ Evidence: ${error.message}`);
+      } else {
+        console.log(`    ✓ Evidence for completed task #${ev.taskIndex + 1}`);
+      }
     }
   }
 
   // 5. Add reviews for completed tasks (index 0-3)
   console.log("\n  Creating task reviews...");
 
-  for (let i = 0; i < 4; i++) {
-    if (!insertedTaskIds[i]) continue;
-    const { error } = await supabase.from("task_reviews").insert({
-      task_id: insertedTaskIds[i],
-      reviewed_by: supervisorId,
-      action: "approved",
-      comment: "Good work. Standards met.",
-      org_id: DEMO_ORG_ID,
-    });
-    if (error) {
-      console.error(`    ✗ Review: ${error.message}`);
-    } else {
-      console.log(`    ✓ Review for task #${i + 1}`);
+  if (hasTaskReviewsTable) {
+    const reviewsHasOrgId = await columnExists("task_reviews", "org_id");
+    for (let i = 0; i < 4; i++) {
+      const taskId = taskIdsByIndex[i];
+      if (!taskId) continue;
+      const reviewPayload: Record<string, unknown> = {
+        task_id: taskId,
+        reviewed_by: supervisorId,
+        action: "approved",
+        comment: "Good work. Standards met.",
+      };
+      if (reviewsHasOrgId) reviewPayload.org_id = DEMO_ORG_ID;
+
+      const { error } = await supabase.from("task_reviews").insert(reviewPayload);
+      if (error) {
+        console.error(`    ✗ Review: ${error.message}`);
+      } else {
+        console.log(`    ✓ Review for task #${i + 1}`);
+      }
     }
   }
 
   // Add rejection review for rejected task (index 14)
-  if (insertedTaskIds[14]) {
-    const { error } = await supabase.from("task_reviews").insert({
-      task_id: insertedTaskIds[14],
+  if (hasTaskReviewsTable && taskIdsByIndex[14]) {
+    const reviewsHasOrgId = await columnExists("task_reviews", "org_id");
+    const rejectionPayload: Record<string, unknown> = {
+      task_id: taskIdsByIndex[14],
       reviewed_by: supervisorId,
       action: "rejected",
       comment:
         "Floor wax application incomplete — only 1 coat applied instead of 3. Please redo with full 3 coats.",
-      org_id: DEMO_ORG_ID,
-    });
+    };
+    if (reviewsHasOrgId) rejectionPayload.org_id = DEMO_ORG_ID;
+
+    const { error } = await supabase.from("task_reviews").insert(rejectionPayload);
     if (error) {
       console.error(`    ✗ Rejection review: ${error.message}`);
     } else {
@@ -536,20 +715,31 @@ async function seed() {
     },
   ];
 
-  for (const esc of escalationDefs) {
-    if (!insertedTaskIds[esc.taskIndex]) continue;
-    const { error } = await supabase.from("escalations").insert({
-      task_id: insertedTaskIds[esc.taskIndex],
-      escalated_from: supervisorId,
-      escalated_to: managerId,
-      reason: esc.reason,
-      is_resolved: false,
-      org_id: DEMO_ORG_ID,
-    });
-    if (error) {
-      console.error(`    ✗ Escalation: ${error.message}`);
-    } else {
-      console.log(`    ✓ Escalation for task #${esc.taskIndex + 1}`);
+  if (hasEscalationsTable) {
+    const escalationsHasTaskId = await columnExists("escalations", "task_id");
+    const escalationsHasFrom = await columnExists("escalations", "escalated_from");
+    const escalationsHasTo = await columnExists("escalations", "escalated_to");
+    const escalationsHasReason = await columnExists("escalations", "reason");
+    const escalationsHasResolved = await columnExists("escalations", "is_resolved");
+
+    for (const esc of escalationDefs) {
+      const taskId = taskIdsByIndex[esc.taskIndex];
+      if (!taskId) continue;
+
+      const escalationPayload: Record<string, unknown> = {};
+      if (escalationsHasTaskId) escalationPayload.task_id = taskId;
+      if (escalationsHasFrom) escalationPayload.escalated_from = supervisorId;
+      if (escalationsHasTo) escalationPayload.escalated_to = managerId;
+      if (escalationsHasReason) escalationPayload.reason = esc.reason;
+      if (escalationsHasResolved) escalationPayload.is_resolved = false;
+      if (escalationsHasOrgId) escalationPayload.org_id = DEMO_ORG_ID;
+
+      const { error } = await supabase.from("escalations").insert(escalationPayload);
+      if (error) {
+        console.error(`    ✗ Escalation: ${error.message}`);
+      } else {
+        console.log(`    ✓ Escalation for task #${esc.taskIndex + 1}`);
+      }
     }
   }
 

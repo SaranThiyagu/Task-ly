@@ -28,6 +28,7 @@ import {
   Sparkles,
   ImagePlus,
   PartyPopper,
+  MapPin,
 } from "lucide-react";
 import { useDictionary } from "@/lib/i18n/dictionary-provider";
 
@@ -49,6 +50,7 @@ interface CompleteTaskModalProps {
   onOpenChange: (open: boolean) => void;
   taskId: string;
   taskTitle: string;
+  taskSiteLocation?: string | null;
 }
 
 export function CompleteTaskModal({
@@ -56,6 +58,7 @@ export function CompleteTaskModal({
   onOpenChange,
   taskId,
   taskTitle,
+  taskSiteLocation,
 }: CompleteTaskModalProps) {
   const router = useRouter();
   const dict = useDictionary();
@@ -325,6 +328,7 @@ export function CompleteTaskModal({
             <ReviewStep
               preview={preview}
               notes={notes}
+              siteLocation={taskSiteLocation}
               onEditPhoto={() => setStep("upload")}
               onEditNotes={() => setStep("details")}
             />
@@ -739,11 +743,13 @@ function DetailsStep({
 function ReviewStep({
   preview,
   notes,
+  siteLocation,
   onEditPhoto,
   onEditNotes,
 }: {
   preview: string | null;
   notes: string;
+  siteLocation?: string | null;
   onEditPhoto: () => void;
   onEditNotes: () => void;
 }) {
@@ -757,6 +763,17 @@ function ReviewStep({
           Make sure everything looks good before submitting for review.
         </p>
       </div>
+
+      {/* Location — read-only, no edit needed */}
+      {siteLocation && (
+        <div className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-blue-50/60 px-4 py-3">
+          <MapPin className="h-4 w-4 shrink-0 text-blue-500" />
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-blue-500">Location</p>
+            <p className="text-sm font-semibold text-slate-800 truncate">{siteLocation}</p>
+          </div>
+        </div>
+      )}
 
       {/* Photo */}
       <ReviewCard

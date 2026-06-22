@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { format, addHours } from "date-fns";
 import {
@@ -25,7 +25,7 @@ import {
   Flame,
   CheckCircle2,
 } from "lucide-react";
-import type { TaskPriority } from "@/lib/types";
+import type { Site, TaskPriority } from "@/lib/types";
 
 export interface StaffOption {
   id: string;
@@ -84,19 +84,33 @@ export function CreateTaskModal({
   const [description, setDescription] = useState("");
   const [assignedTo, setAssignedTo] = useState(defaultAssignee);
   const [priority, setPriority] = useState<TaskPriority>("medium");
-  const [siteLocation, setSiteLocation] = useState("");
+  const [siteId, setSiteId] = useState("");
   const [dueDate, setDueDate] = useState(
     format(addHours(new Date(), 4), "yyyy-MM-dd'T'HH:mm")
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // ── Sites dropdown ──
+  const [sites, setSites] = useState<Pick<Site, "id" | "name" | "address">[]>([]);
+  const [sitesLoading, setSitesLoading] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setSitesLoading(true);
+    fetch("/api/sites")
+      .then((r) => r.json())
+      .then((d) => setSites(d.sites ?? []))
+      .catch(() => setSites([]))
+      .finally(() => setSitesLoading(false));
+  }, [open]);
+
   function resetForm() {
     setTitle("");
     setDescription("");
     setAssignedTo(defaultAssignee);
     setPriority("medium");
-    setSiteLocation("");
+    setSiteId("");
     setDueDate(format(addHours(new Date(), 4), "yyyy-MM-dd'T'HH:mm"));
     setError(null);
   }
@@ -124,7 +138,11 @@ export function CreateTaskModal({
           description: description.trim() || undefined,
           assigned_to: assignedTo,
           priority,
-          site_location: siteLocation.trim() || undefined,
+          site_id: siteId || undefined,
+          // Populate site_location with the site name for legacy schema compat
+          site_location: siteId
+            ? (sites.find((s) => s.id === siteId)?.name ?? undefined)
+            : undefined,
           due_date: new Date(dueDate).toISOString(),
         }),
       });
@@ -245,7 +263,7 @@ export function CreateTaskModal({
             </div>
           </div>
 
-          {/* ── Site Location + Due Date row ── */}
+          {/* ── Site / Location + Due Date row ── */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="ct-site" className="text-[12px] font-bold uppercase tracking-wider text-slate-500">
@@ -254,14 +272,26 @@ export function CreateTaskModal({
                   Site / Location
                 </span>
               </Label>
-              <Input
+              <select
                 id="ct-site"
-                value={siteLocation}
-                onChange={(e) => setSiteLocation(e.target.value)}
-                placeholder="e.g. Floor 4 – East Wing"
-                maxLength={80}
-                className="h-11 rounded-xl border-slate-200 text-[14px] focus:border-indigo-300 focus:ring-indigo-100"
-              />
+                value={siteId}
+                onChange={(e) => setSiteId(e.target.value)}
+                disabled={sitesLoading}
+                className="h-11 w-full appearance-none rounded-xl border border-slate-200 bg-white px-3 text-[14px] text-slate-700 shadow-sm focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-100 disabled:opacity-50"
+              >
+                <option value="">— No location —</option>
+                {sites.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}{s.address ? ` · ${s.address}` : ""}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-slate-400">
+                Locations are managed in{" "}
+                <a href="/manager/settings" className="underline hover:text-slate-600">
+                  Settings
+                </a>.
+              </p>
             </div>
 
             <div className="space-y-1.5">

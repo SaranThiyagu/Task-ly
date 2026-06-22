@@ -29,6 +29,7 @@ import {
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Badge } from "@/components/ui/badge";
 import { useDictionary } from "@/lib/i18n/dictionary-provider";
+import { normalizeTaskStatus } from "@/lib/tasks/normalization";
 import type {
   Task,
   Profile,
@@ -87,14 +88,16 @@ export function TaskDetailClient({
   const [resubmitting, setResubmitting] = useState(false);
   const [completeModalOpen, setCompleteModalOpen] = useState(false);
 
+  const normalizedStatus = normalizeTaskStatus(task.status);
+
   const isOverdue =
-    (task.status === "pending" || task.status === "in_progress") &&
+    (normalizedStatus === "pending" || normalizedStatus === "in_progress") &&
     isPast(new Date(task.due_date));
 
-  const isCompleted = task.status === "completed";
-  const isRejected = task.status === "rejected";
-  const isInProgress = task.status === "in_progress";
-  const isPending = task.status === "pending";
+  const isCompleted = normalizedStatus === "completed";
+  const isRejected = normalizedStatus === "rejected";
+  const isInProgress = normalizedStatus === "in_progress";
+  const isPending = normalizedStatus === "pending";
   const canAct = isPending || isInProgress || isRejected;
 
   async function handleStartTask() {
@@ -105,6 +108,14 @@ export function TaskDetailClient({
       setStarting(false);
       return;
     }
+
+    if ("openCompleteModal" in result && result.openCompleteModal) {
+      toast.success(td.start_fallback_to_complete ?? td.toast_started);
+      setCompleteModalOpen(true);
+      setStarting(false);
+      return;
+    }
+
     toast.success(td.toast_started);
     router.refresh();
     setStarting(false);
@@ -200,14 +211,12 @@ export function TaskDetailClient({
 
           {/* INFO GRID */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {task.site_location && (
-              <TaskInfoCard
-                tone="blue"
-                icon={<MapPin className="h-5 w-5" />}
-                label={td.location}
-                value={task.site_location}
-              />
-            )}
+            <TaskInfoCard
+              tone="blue"
+              icon={<MapPin className="h-5 w-5" />}
+              label={td.location}
+              value={task.site_location || "Not mapped"}
+            />
             <TaskInfoCard
               tone="violet"
               icon={<CalendarDays className="h-5 w-5" />}
@@ -485,6 +494,7 @@ export function TaskDetailClient({
         onOpenChange={setCompleteModalOpen}
         taskId={task.id}
         taskTitle={task.title}
+        taskSiteLocation={task.site_location}
       />
     </div>
   );

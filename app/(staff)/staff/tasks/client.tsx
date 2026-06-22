@@ -9,26 +9,29 @@ import {
   ChevronRight,
   Inbox,
   Zap,
-  CircleDot,
-  Filter,
+  User,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useDictionary } from "@/lib/i18n/dictionary-provider";
+import { normalizeTaskStatus } from "@/lib/tasks/normalization";
 import type { Task, TaskStatus } from "@/lib/types";
 import { PRIORITY_CONFIG, STATUS_CONFIG } from "@/lib/types";
 
 interface MyTasksClientProps {
   tasks: Task[];
+  assigneeName: string;
 }
 
 function getDisplayStatus(task: Task): TaskStatus {
+  const normalized = normalizeTaskStatus(task.status);
+
   if (
-    (task.status === "pending" || task.status === "in_progress") &&
+    (normalized === "pending" || normalized === "in_progress") &&
     isPast(new Date(task.due_date))
   ) {
     return "overdue";
   }
-  return task.status;
+  return normalized;
 }
 
 const priorityDot: Record<string, string> = {
@@ -44,7 +47,7 @@ const sectionConfig: Record<string, { dot: string; accent: string }> = {
   Pending: { dot: "bg-slate-400", accent: "text-slate-600" },
 };
 
-export function MyTasksClient({ tasks }: MyTasksClientProps) {
+export function MyTasksClient({ tasks, assigneeName }: MyTasksClientProps) {
   const dict = useDictionary();
   const t = dict.staff.tasks;
   const [activeFilter, setActiveFilter] = useState<"All" | "Overdue" | "In Progress" | "Pending">("All");
@@ -56,10 +59,10 @@ export function MyTasksClient({ tasks }: MyTasksClientProps) {
 
   const overdue = enriched.filter((t) => t.displayStatus === "overdue");
   const inProgress = enriched.filter(
-    (t) => t.status === "in_progress" && t.displayStatus !== "overdue"
+    (t) => t.displayStatus === "in_progress"
   );
   const pending = enriched.filter(
-    (t) => t.status === "pending" && t.displayStatus !== "overdue"
+    (t) => t.displayStatus === "pending"
   );
 
   const filterLabels: Record<string, string> = {
@@ -197,14 +200,6 @@ export function MyTasksClient({ tasks }: MyTasksClientProps) {
                               </Badge>
                             </div>
                             <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
-                              {task.site_location && (
-                                <span className="flex items-center gap-1">
-                                  <MapPin className="h-3 w-3" />
-                                  <span className="truncate max-w-[160px]">
-                                    {task.site_location}
-                                  </span>
-                                </span>
-                              )}
                               <span className="flex items-center gap-1">
                                 <Clock className="h-3 w-3" />
                                 {isOverdue
@@ -216,6 +211,18 @@ export function MyTasksClient({ tasks }: MyTasksClientProps) {
                                       new Date(task.due_date),
                                       "MMM d, h:mm a"
                                     )}
+                              </span>
+                            </div>
+                            <div className="mt-2.5 grid grid-cols-1 gap-1.5 text-xs text-slate-500 sm:grid-cols-2">
+                              <span className="flex items-center gap-1.5 rounded-md bg-slate-50 px-2 py-1">
+                                <User className="h-3.5 w-3.5 text-slate-400" />
+                                <span className="font-medium text-slate-600">Assigned to:</span>
+                                <span className="truncate text-slate-700">{assigneeName || "You"}</span>
+                              </span>
+                              <span className="flex items-center gap-1.5 rounded-md bg-slate-50 px-2 py-1">
+                                <MapPin className="h-3.5 w-3.5 text-slate-400" />
+                                <span className="font-medium text-slate-600">Location:</span>
+                                <span className="truncate text-slate-700">{task.site_location || "Not mapped"}</span>
                               </span>
                             </div>
                           </div>

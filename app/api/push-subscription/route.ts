@@ -21,21 +21,47 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid subscription" }, { status: 400 });
   }
 
-  const { error } = await supabase.from("push_subscriptions").upsert(
-    {
+  try {
+    // First check if this exact subscription already exists
+    const { data: existing } = await supabase
+      .from("push_subscriptions")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("endpoint", endpoint)
+      .single();
+
+    // If it already exists, just return success
+    if (existing) {
+      return NextResponse.json({ ok: true, existing: true });
+    }
+
+    // Otherwise, insert the new subscription
+    const { error } = await supabase.from("push_subscriptions").insert({
       user_id: user.id,
       endpoint,
       p256dh: keys.p256dh,
       auth: keys.auth,
-    },
-    { onConflict: "user_id,endpoint" }
-  );
+    });
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) {
+      // If constraint violation (duplicate), that's OK — subscription already exists
+      if (error.code === "23505") {
+        console.log("[Push] Subscription already exists");
+        return NextResponse.json({ ok: true, duplicate: true });
+      }
+
+      console.error("[Push] Insert error:", error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error("[Push] Unexpected error:", err);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
   }
-
-  return NextResponse.json({ ok: true });
 }
 
 export async function DELETE(req: NextRequest) {

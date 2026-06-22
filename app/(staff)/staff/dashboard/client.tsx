@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { useDictionary } from "@/lib/i18n/dictionary-provider";
+import { normalizeTaskStatus } from "@/lib/tasks/normalization";
 import type { Dictionary } from "@/lib/i18n/get-dictionary";
 import type {
   Profile,
@@ -52,8 +53,9 @@ function getGreeting(dict: Dictionary["staff"]["dashboard"]): string {
 }
 
 function isOverdueTask(t: Task): boolean {
+  const status = normalizeTaskStatus(t.status);
   return (
-    (t.status === "pending" || t.status === "in_progress") &&
+    (status === "pending" || status === "in_progress") &&
     isPast(new Date(t.due_date))
   );
 }
@@ -98,17 +100,23 @@ export function StaffDashboardClient({
     const completed: TaskWithReviews[] = [];
 
     for (const t of tasks) {
+      const status = normalizeTaskStatus(t.status);
+      const completedAtFallback =
+        t.completed_at ||
+        ((t as Record<string, unknown>).updated_at as string | undefined) ||
+        t.due_date;
+
       if (isOverdueTask(t)) {
         overdue.push(t);
       } else if (
-        (t.status === "pending" || t.status === "in_progress") &&
+        (status === "pending" || status === "in_progress") &&
         isToday(new Date(t.due_date))
       ) {
         today.push(t);
       } else if (
-        t.status === "completed" &&
-        t.completed_at &&
-        isToday(new Date(t.completed_at))
+        status === "completed" &&
+        completedAtFallback &&
+        isToday(new Date(completedAtFallback))
       ) {
         completed.push(t);
       }

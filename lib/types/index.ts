@@ -34,6 +34,9 @@ export interface Site {
 
 // ── Core types ──
 
+// Application user metadata row keyed by auth.users.id.
+// The product term "staff member" maps to `role: "staff"`.
+
 export interface Profile {
   id: string;
   org_id: string;

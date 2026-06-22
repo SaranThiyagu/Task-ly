@@ -1,36 +1,43 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# TaskMe
 
-## Getting Started
+TaskMe is a multi-tenant task operations app for cleaning teams. It supports role-based flows for staff, supervisors, and managers with Supabase-backed data and policies.
 
-First, run the development server:
+## Local development
+
+1. Install dependencies:
+
+```bash
+npm install
+```
+
+2. Configure environment variables in `.env.local`.
+
+3. Start the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+4. Open `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Identity model
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+This project does not use a `staff_members` table.
 
-## Learn More
+- `auth.users` is the authentication source.
+- `public.profiles` is the application identity source.
+- `public.profiles.id` maps 1:1 to `auth.users.id`.
 
-To learn more about Next.js, take a look at the following resources:
+Use product wording like "staff member" in UI only. In data access, "staff member" means a `profiles` row with `role = 'staff'`.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+See `docs/Identity-Model.md` for full details.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Scripts
 
-## Deploy on Vercel
+- `npm run dev`: run Next.js locally.
+- `npm run build`: production build.
+- `npm run lint`: lint checks.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Notes
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Some live databases may still expose legacy task columns. API writes include compatibility fallbacks where needed.

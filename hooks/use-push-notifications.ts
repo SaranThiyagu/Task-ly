@@ -28,6 +28,8 @@ export function usePushNotifications(userId: string | undefined) {
 
     setIsSupported(true);
 
+    let isMounted = true;
+
     async function init() {
       try {
         const registration = await navigator.serviceWorker.register("/sw.js", {
@@ -40,7 +42,7 @@ export function usePushNotifications(userId: string | undefined) {
 
         const existing = await registration.pushManager.getSubscription();
         if (existing) {
-          setIsSubscribed(true);
+          if (isMounted) setIsSubscribed(true);
           return;
         }
 
@@ -55,18 +57,38 @@ export function usePushNotifications(userId: string | undefined) {
           applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
         });
 
-        // Persist to server
+        // Persist to server with timeout to prevent hanging
         const parsed = sub.toJSON();
-        await fetch("/api/push-subscription", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            endpoint: parsed.endpoint,
-            keys: parsed.keys,
-          }),
-        });
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
 
-        setIsSubscribed(true);
+        try {
+          const response = await fetch("/api/push-subscription", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              endpoint: parsed.endpoint,
+              keys: parsed.keys,
+            }),
+            signal: controller.signal,
+          });
+
+          clearTimeout(timeout);
+
+          if (!response.ok) {
+            console.warn(
+              "[Push] Failed to save subscription:",
+              await response.text()
+            );
+            return;
+          }
+
+          if (isMounted) setIsSubscribed(true);
+        } catch (fetchErr) {
+          clearTimeout(timeout);
+          console.warn("[Push] Failed to persist subscription:", fetchErr);
+          // Don't fail silently — just warn and continue
+        }
       } catch (err) {
         // Notification permission denied or service worker error — silent fail
         console.warn("[Push] Could not subscribe:", err);
@@ -74,6 +96,10 @@ export function usePushNotifications(userId: string | undefined) {
     }
 
     init();
+
+    return () => {
+      isMounted = false;
+    };
   }, [userId]);
 
   return { isSupported, isSubscribed };

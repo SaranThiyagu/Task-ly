@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { getAssignedToColumn, hasOrgIdColumn } from "@/lib/supabase/staff-queries";
+import { normalizeTaskStatus } from "@/lib/tasks/normalization";
 import { ProfileClient } from "./client";
 
 export default async function ProfilePage() {
@@ -19,17 +21,26 @@ export default async function ProfilePage() {
 
   if (!profile) redirect("/login");
 
-  // Get task stats
-  const { count: totalTasks } = await supabase
-    .from("tasks")
-    .select("*", { count: "exact", head: true })
-    .eq("assigned_to", user.id);
+  // Detect schema variants
+  const assignedToCol = await getAssignedToColumn(supabase);
+  const hasOrgId = await hasOrgIdColumn(supabase);
 
-  const { count: completedTasks } = await supabase
+  // Fetch tasks once, then compute normalized stats in memory.
+  let tasksQuery = supabase
     .from("tasks")
-    .select("*", { count: "exact", head: true })
-    .eq("assigned_to", user.id)
-    .eq("status", "completed");
+    .select("id, status")
+    .eq(assignedToCol, user.id);
+
+  if (hasOrgId && profile.org_id) {
+    tasksQuery = tasksQuery.eq("org_id", profile.org_id);
+  }
+
+  const { data: tasks } = await tasksQuery;
+  const totalTasks = tasks?.length || 0;
+  const completedTasks =
+    tasks?.filter((t) =>
+      normalizeTaskStatus((t as Record<string, unknown>).status) === "completed"
+    ).length || 0;
 
   return (
     <ProfileClient
